@@ -1,0 +1,33 @@
+/* Studyroom design tokens · soft-violet workspace */
+.root {
+  -ink: #151a2c;
+  -muted: #697188;
+  -paper: #fbfbff;
+  -surface: #ffffff;
+  -line: #e8e9f4;
+  -violet: #6558f5;
+  -violet-hover: #5145df;
+  -violet-soft: #f0efff;
+  -input-surface: #f8f8fc;
+  -input-hover: #f2f1fb;
+  -focus: #6558f5;
+  -success: #26bd68;
+  -danger: #d83f57;
+  -on-accent: white;
+  -shadow-violet: rgba(38,31,100,.10);
+  -shadow-focus: rgba(101,88,245,.28);
+  -shadow-focus-strong: rgba(101,88,245,.35);
+  -bubble-peer: #f3f3f7;
+  -slide-end: #f7f5ff;
+  -album-dark: #373258;
+  -album-warm: #aa7361;
+  -toast-surface: #25223c;
+  -chat-search: #f5f5f8;
+  -thread-active: #efedff;
+  -thread-active-border: #e8e4ff;
+  -message-soft: #f4f4f6;
+  -avatar-indigo: #7063f6;
+  -avatar-pink: #e987b2;
+  -avatar-gold: #b98143;
+  -file-icon: #f15454;
+}

@@ -1,0 +1,57 @@
+package vn.studyroom;
+
+import java.security.SecureRandom;
+import java.security.spec.InvalidKeySpecException;
+import java.util.Base64;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
+import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
+
+/** Local-first auth backed by H2 with PBKDF2 password hashes. */
+public final class AuthStore {
+    private final Database database;
+
+    public AuthStore(Database database) { this.database = database; }
+
+    public synchronized User register(String name, String username, String password) {
+        String key = username.trim().toLowerCase();
+        if (name.isBlank() || key.isBlank() || password.length() < 6) throw new IllegalArgumentException("Điền đủ thông tin; mật khẩu cần ít nhất 6 ký tự.");
+        byte[] salt = new byte[16]; new SecureRandom().nextBytes(salt);
+        try (Connection c = database.connect(); PreparedStatement q = c.prepareStatement("INSERT INTO app_user(username, display_name, password_hash, salt) VALUES (?, ?, ?, ?)") ) {
+            q.setString(1, key); q.setString(2, name.trim()); q.setString(3, hash(password, salt)); q.setString(4, Base64.getEncoder().encodeToString(salt)); q.executeUpdate();
+            return new User(key, name.trim());
+        } catch (SQLException e) {
+            if ("23505".equals(e.getSQLState())) throw new IllegalArgumentException("Tên đăng nhập này đã tồn tại.");
+            throw new IllegalStateException("Không thể lưu tài khoản vào database.", e);
+        }
+    }
+
+    public synchronized User login(String username, String password) {
+        String key = username.trim().toLowerCase();
+        try (Connection c = database.connect(); PreparedStatement q = c.prepareStatement("SELECT display_name, password_hash, salt FROM app_user WHERE username = ?")) {
+            q.setString(1, key); ResultSet result = q.executeQuery();
+            if (!result.next() || !hash(password, Base64.getDecoder().decode(result.getString("salt"))).equals(result.getString("password_hash"))) {
+                throw new IllegalArgumentException("Tên đăng nhập hoặc mật khẩu chưa đúng.");
+            }
+            return new User(key, result.getString("display_name"));
+        } catch (SQLException e) { throw new IllegalStateException("Không thể đọc database.", e); }
+    }
+
+    public List<User> otherUsers(String username) {
+        List<User> users = new ArrayList<>();
+        try (Connection c = database.connect(); PreparedStatement q = c.prepareStatement("SELECT username, display_name FROM app_user WHERE username <> ? ORDER BY display_name")) {
+            q.setString(1, username); ResultSet result = q.executeQuery();
+            while (result.next()) users.add(new User(result.getString(1), result.getString(2)));
+            return users;
+        } catch (SQLException e) { throw new IllegalStateException("Không thể tải người dùng.", e); }
+    }
+
+    private static String hash(String password, byte[] salt) {
+        try {
+            PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, 210_000, 256);
+            return Base64.getEncoder().encodeToString(SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).getEncoded());
+        } catch (InvalidKeySpecException | java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+    }
+}

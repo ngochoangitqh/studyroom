@@ -1,0 +1,12 @@
+target/
+.tools/m2/
+.tools/filesystem-mcp-server/
+.tools/sequentialthinking/
+.tools/*.zip
+.hallmark/
+*.log
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db

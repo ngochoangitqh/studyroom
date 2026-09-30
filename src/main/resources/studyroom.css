@@ -1,0 +1,80 @@
+/* Hallmark · pre-emit critique: P4 H4 E4 S5 R4 V4 */
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · theme: soft-violet · enrichment: none · nav: N3 side-rail · footer: n/a */
+@import "tokens.css";
+.root { -fx-font-family: "Inter", "Segoe UI", sans-serif; }
+.root { -fx-background-color: -paper; -fx-text-fill: -ink; }
+.auth-root { -fx-background-color: linear-gradient(to bottom right, -input-surface, -violet-soft); -fx-alignment: center; -fx-padding: 32; }
+.auth-card { -fx-background-color: -surface; -fx-background-radius: 24; -fx-padding: 42; -fx-border-color: -line; -fx-border-radius: 24; -fx-effect: dropshadow(gaussian, -shadow-violet, 34, 0, 0, 12); }
+.brand { -fx-font-size: 22px; -fx-font-weight: 800; -fx-text-fill: -ink; }
+.auth-title { -fx-font-size: 32px; -fx-font-weight: 800; -fx-line-spacing: 2; }
+.muted { -fx-text-fill: -muted; -fx-font-size: 14px; }
+.input, .composer { -fx-min-height: 46; -fx-background-color: -input-surface; -fx-background-radius: 10; -fx-border-color: -line; -fx-border-radius: 10; -fx-padding: 0 14; -fx-font-size: 14px; }
+.input:hover, .composer:hover { -fx-background-color: -input-hover; }.input:focused, .composer:focused { -fx-border-color: -focus; -fx-border-width: 1; -fx-effect: dropshadow(gaussian, -shadow-focus, 8, 0, 0, 0); }
+.form-error { -fx-text-fill: -danger; -fx-min-height: 18; }
+.button { -fx-min-height: 42; -fx-background-color: -surface; -fx-border-color: -line; -fx-border-radius: 10; -fx-background-radius: 10; -fx-padding: 0 16; -fx-text-fill: -ink; -fx-font-weight: 600; -fx-cursor: hand; }
+.button:hover { -fx-background-color: -violet-soft; -fx-border-color: -violet; }.button:focused { -fx-border-color: -focus; -fx-effect: dropshadow(gaussian, -shadow-focus-strong, 7, 0, 0, 0); }.button:pressed { -fx-translate-y: 1; }.button:disabled { -fx-opacity: .5; -fx-cursor: default; }
+.button-primary { -fx-background-color: -violet; -fx-border-color: -violet; -fx-text-fill: -on-accent; }.button-primary:hover { -fx-background-color: -violet-hover; -fx-border-color: -violet-hover; }
+.app-shell { -fx-background-color: -paper; }.sidebar { -fx-min-width: 170; -fx-pref-width: 170; -fx-padding: 18 8 14 8; -fx-background-color: -surface; -fx-border-color: transparent -line transparent transparent; }.nav-item { -fx-alignment: CENTER_LEFT; -fx-font-size: 12px; -fx-min-height: 28; -fx-background-color: transparent; -fx-border-color: transparent; -fx-background-radius: 6; -fx-padding: 0 8; }.nav-item:hover { -fx-background-color: -violet-soft; -fx-text-fill: -violet; }.presence { -fx-font-size: 10px; -fx-text-fill: -muted; }
+.workspace { -fx-background-color: -paper; }.page-title { -fx-font-size: 28px; -fx-font-weight: 800; }.thread-list, .conversation, .deck, .people, .player, .queue, .profile-card { -fx-background-color: -surface; -fx-background-radius: 16; -fx-border-color: -line; -fx-border-radius: 16; -fx-padding: 16; }.thread { -fx-padding: 12; -fx-background-radius: 10; }.thread:hover, .thread-active { -fx-background-color: -violet-soft; }.thread .label:first-child { -fx-font-weight: 700; }.thread .label:last-child { -fx-text-fill: -muted; }
+.group-title { -fx-font-size: 17px; -fx-font-weight: 800; }.message-scroll { -fx-background-color: transparent; -fx-background: transparent; -fx-border-color: transparent; }.message-scroll > .viewport { -fx-background-color: transparent; }.bubble { -fx-max-width: 470; -fx-padding: 10 14; -fx-background-radius: 14; }.bubble-peer { -fx-background-color: #f3f3f7; }.bubble-mine { -fx-background-color: -violet; }.bubble-mine .label { -fx-text-fill: white; }.message-sender { -fx-font-weight: 700; -fx-font-size: 12px; }.message-time { -fx-font-size: 11px; -fx-opacity: .72; }.icon-button { -fx-min-width: 42; -fx-padding: 0; }
+.slide { -fx-font-size: 19px; -fx-line-spacing: 8; -fx-padding: 48; -fx-background-color: linear-gradient(to bottom right, -surface, -slide-end); -fx-background-radius: 12; -fx-border-color: -line; -fx-border-radius: 12; }.person { -fx-padding: 12 4; -fx-text-fill: -ink; }.album-art { -fx-min-width: 350; -fx-min-height: 260; -fx-alignment: center; -fx-text-alignment: center; -fx-font-size: 36px; -fx-font-weight: 800; -fx-text-fill: -on-accent; -fx-background-color: linear-gradient(to bottom right, -album-dark, -album-warm); -fx-background-radius: 16; }.now-playing { -fx-font-size: 26px; -fx-font-weight: 800; }.progress-bar { -fx-accent: -violet; }.play { -fx-min-width: 58; -fx-min-height: 58; -fx-font-size: 20px; -fx-background-radius: 29; }.track { -fx-alignment: CENTER_LEFT; -fx-background-color: transparent; -fx-border-color: transparent; }.track:hover { -fx-background-color: -violet-soft; }.toast { -fx-background-color: -toast-surface; -fx-text-fill: -on-accent; -fx-background-radius: 9; -fx-padding: 10 14; -fx-translate-y: -8; }
+
+/* Chat view: three-column Studyroom workspace, adapted from user reference. */
+.chat-workspace { -fx-background-color: -surface; }
+.chat-workspace > .thread-list { -fx-border-color: transparent -line transparent transparent; }
+.thread-list { -fx-padding: 26 12 12 22; -fx-background-color: -surface; -fx-background-radius: 0; -fx-border-color: transparent -line transparent transparent; -fx-border-width: 0 1.5 0 0; }
+.thread-title-row { -fx-alignment: CENTER_LEFT; -fx-padding: 0 0 20 0; }
+.chat-page-title { -fx-font-size: 22px; -fx-font-weight: 800; -fx-text-fill: -ink; }
+.chat-search { -fx-min-height: 36; -fx-background-color: -chat-search; -fx-background-radius: 14; -fx-border-color: transparent; -fx-padding: 0 12; -fx-font-size: 13px; }
+.chat-filters { -fx-padding: 6 0 6 0; -fx-alignment: CENTER_LEFT; }
+.filter-chip { -fx-min-height: 28; -fx-background-color: -chat-search; -fx-background-radius: 14; -fx-border-color: transparent; -fx-padding: 0 10; -fx-font-size: 11px; -fx-font-weight: 600; }
+.filter-chip:hover { -fx-background-color: -violet-soft; -fx-text-fill: -violet; }
+.filter-chip-active { -fx-background-color: -violet-soft; -fx-text-fill: -violet; }
+.thread-scroll, .thread-scroll > .viewport { -fx-background-color: transparent; -fx-background: transparent; -fx-border-color: transparent; }
+.thread-items { -fx-padding: 2 0 12 0; }
+.thread-section { -fx-padding: 12 8 4; -fx-font-size: 10px; -fx-font-weight: 800; -fx-text-fill: -muted; }
+.empty-thread-list { -fx-padding: 16 10; -fx-text-fill: -muted; -fx-font-size: 12px; }
+.thread { -fx-alignment: TOP_LEFT; -fx-padding: 8 8; -fx-background-radius: 10; -fx-cursor: hand; }
+.thread:hover, .thread-active { -fx-background-color: -thread-active; }
+.thread-copy { -fx-padding: 1 0 0 0; }
+.thread-name { -fx-font-size: 13px; -fx-font-weight: 800; -fx-text-fill: -ink; }
+.thread-preview { -fx-font-size: 11px; -fx-text-fill: -muted; -fx-max-width: 200; }
+.thread-time { -fx-font-size: 12px; -fx-text-fill: -muted; }
+.unread-badge { -fx-background-color: -violet; -fx-text-fill: -on-accent; -fx-background-radius: 12; -fx-padding: 3 8; -fx-font-size: 11px; -fx-font-weight: 800; }
+.avatar { -fx-background-radius: 20; -fx-alignment: CENTER; }
+.avatar-text { -fx-text-fill: -on-accent; -fx-font-size: 11px; -fx-font-weight: 800; }
+.avatar-group { -fx-background-color: -avatar-indigo; }
+.avatar-person { -fx-background-color: -avatar-pink; }
+.thread:nth-child(3) .avatar { -fx-background-color: -avatar-gold; }
+.conversation { -fx-padding: 0; -fx-background-color: -surface; -fx-background-radius: 0; -fx-border-color: transparent; }
+.conversation-empty { -fx-alignment: CENTER; -fx-padding: 28; }
+.empty-title { -fx-font-size: 20px; -fx-font-weight: 800; -fx-text-fill: -ink; }
+.empty-conversation { -fx-text-fill: -muted; -fx-font-size: 14px; }
+.conversation-header { -fx-min-height: 98; -fx-padding: 18 26; -fx-alignment: CENTER_LEFT; -fx-border-color: transparent transparent -line transparent; }
+.group-name { -fx-font-size: 18px; -fx-font-weight: 800; -fx-text-fill: -ink; }
+.group-meta { -fx-font-size: 13px; -fx-text-fill: -muted; }
+.icon-button { -fx-min-width: 42; -fx-min-height: 42; -fx-background-color: transparent; -fx-border-color: transparent; -fx-background-radius: 21; -fx-font-size: 18px; -fx-text-fill: -ink; -fx-padding: 0; }
+.icon-button:hover { -fx-background-color: -violet-soft; -fx-text-fill: -violet; }
+.message-scroll, .message-scroll > .viewport { -fx-background-color: -surface; -fx-background: -surface; -fx-border-color: transparent; }
+.messages { -fx-background-color: -surface; }
+.day-label { -fx-alignment: CENTER; -fx-max-width: Infinity; -fx-font-size: 13px; -fx-text-fill: -muted; }
+.bubble { -fx-padding: 10 15; -fx-background-radius: 16; -fx-max-width: 430; }
+.bubble-peer { -fx-background-color: -message-soft; }
+.bubble-mine { -fx-background-color: -violet; }
+.bubble .label { -fx-font-size: 15px; -fx-text-fill: -ink; }
+.bubble-mine .label { -fx-text-fill: -on-accent; }
+.message-sender { -fx-font-size: 13px; -fx-text-fill: -muted; }
+.message-time { -fx-font-size: 11px !important; -fx-opacity: .8; }
+.file-card { -fx-min-width: 380; -fx-padding: 14 16; -fx-background-color: -surface; -fx-background-radius: 14; -fx-border-color: -line; -fx-border-radius: 14; }
+.file-name { -fx-font-size: 14px; -fx-font-weight: 800; -fx-text-fill: -ink; }
+.file-size { -fx-font-size: 13px; -fx-text-fill: -muted; }
+.composer-shell { -fx-padding: 16 22 18 22; -fx-alignment: CENTER; -fx-border-color: -line transparent transparent transparent; }
+.composer { -fx-min-height: 52; -fx-background-color: -chat-search; -fx-background-radius: 26; -fx-border-color: transparent; -fx-padding: 0 18; }
+.send-icon { -fx-text-fill: -violet; }
+
+/* Custom Modern Dialogs */
+.custom-dialog { -fx-background-color: -surface; -fx-padding: 8; }
+.custom-dialog > .dialog-pane { -fx-background-color: -surface; }
+.custom-dialog .button-bar { -fx-padding: 8 20 16 20; }
+.dialog-title { -fx-font-size: 19px; -fx-font-weight: 800; -fx-text-fill: -ink; }
+.dialog-desc { -fx-font-size: 13px; -fx-text-fill: -muted; }
