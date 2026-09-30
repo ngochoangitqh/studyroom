@@ -3,17 +3,19 @@ package vn.studyroom;
 import javax.sound.sampled.*;
 import java.io.IOException;
 import java.net.*;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Real-time VoIP Audio Engine using javax.sound.sampled and UDP datagram packets.
- * Captures microphone audio, packets it into 20ms PCM frames, and plays incoming streams.
+ * Features noise gate filtering, jitter buffering, and duplicate peer elimination
+ * to provide crisp, noise-free voice communications.
  */
 public final class VoiceEngine implements AutoCloseable {
     private static final AudioFormat FORMAT = new AudioFormat(16000.0f, 16, 1, true, false);
     private static final int FRAME_SIZE = 640; // 20ms of 16kHz 16-bit mono audio
+    private static final double NOISE_THRESHOLD = 300.0; // Noise gate threshold to suppress fan/room hum
 
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean muted = new AtomicBoolean(false);
@@ -22,7 +24,7 @@ public final class VoiceEngine implements AutoCloseable {
     private DatagramSocket udpSocket;
     private TargetDataLine micLine;
     private SourceDataLine speakerLine;
-    private final List<InetSocketAddress> peers = new CopyOnWriteArrayList<>();
+    private final Set<InetSocketAddress> peers = new CopyOnWriteArraySet<>();
 
     public int start(int preferredPort) {
         stop();
@@ -46,22 +48,22 @@ public final class VoiceEngine implements AutoCloseable {
             }
         }
 
-        // Initialize audio speaker
+        // Initialize audio speaker with 200ms buffer to prevent underrun clicking
         try {
             DataLine.Info speakerInfo = new DataLine.Info(SourceDataLine.class, FORMAT);
             if (AudioSystem.isLineSupported(speakerInfo)) {
                 speakerLine = (SourceDataLine) AudioSystem.getLine(speakerInfo);
-                speakerLine.open(FORMAT);
+                speakerLine.open(FORMAT, FRAME_SIZE * 10);
                 speakerLine.start();
             }
         } catch (Exception ignored) { }
 
-        // Initialize microphone
+        // Initialize microphone with 200ms buffer
         try {
             DataLine.Info micInfo = new DataLine.Info(TargetDataLine.class, FORMAT);
             if (AudioSystem.isLineSupported(micInfo)) {
                 micLine = (TargetDataLine) AudioSystem.getLine(micInfo);
-                micLine.open(FORMAT);
+                micLine.open(FORMAT, FRAME_SIZE * 10);
                 micLine.start();
             }
         } catch (Exception ignored) { }
@@ -77,6 +79,19 @@ public final class VoiceEngine implements AutoCloseable {
         }
 
         return port;
+    }
+
+    public static String getLocalIp() {
+        try (DatagramSocket s = new DatagramSocket()) {
+            s.connect(InetAddress.getByName("8.8.8.8"), 10002);
+            return s.getLocalAddress().getHostAddress();
+        } catch (Exception e) {
+            try {
+                return InetAddress.getLocalHost().getHostAddress();
+            } catch (Exception ex) {
+                return "127.0.0.1";
+            }
+        }
     }
 
     public void addPeer(String host, int port) {
@@ -112,6 +127,17 @@ public final class VoiceEngine implements AutoCloseable {
         while (running.get() && micLine != null && micLine.isOpen()) {
             int read = micLine.read(buffer, 0, buffer.length);
             if (read > 0 && !muted.get() && !peers.isEmpty() && udpSocket != null && !udpSocket.isClosed()) {
+                // Noise Gate: calculate RMS of the PCM frame
+                long sum = 0;
+                for (int i = 0; i < read - 1; i += 2) {
+                    short val = (short) ((buffer[i + 1] << 8) | (buffer[i] & 0xFF));
+                    sum += (long) val * val;
+                }
+                double rms = Math.sqrt((double) sum / (read / 2.0));
+                if (rms < NOISE_THRESHOLD) {
+                    continue; // Skip transmitting silence/fan noise
+                }
+
                 for (InetSocketAddress peer : peers) {
                     try {
                         DatagramPacket packet = new DatagramPacket(buffer, read, peer);

@@ -12,7 +12,7 @@ public final class CallRepository {
         this.database = database;
     }
 
-    public CallSession startCall(String roomId, String roomName, String hostUsername, String hostDisplayName, String callType, int udpPort) {
+    public CallSession startCall(String roomId, String roomName, String hostUsername, String hostDisplayName, String callType, int udpPort, String ipAddress) {
         // End any previous active call in this room first
         endCallsInRoom(roomId);
 
@@ -32,11 +32,12 @@ public final class CallRepository {
             }
 
             try (PreparedStatement q = c.prepareStatement(
-                    "INSERT INTO call_participant(call_id, username, display_name, status, udp_port) VALUES (?, ?, ?, 'CONNECTED', ?)")) {
+                    "INSERT INTO call_participant(call_id, username, display_name, status, udp_port, ip_address) VALUES (?, ?, ?, 'CONNECTED', ?, ?)")) {
                 q.setString(1, callId);
                 q.setString(2, hostUsername);
                 q.setString(3, hostDisplayName);
                 q.setInt(4, udpPort);
+                q.setString(5, ipAddress != null ? ipAddress : "127.0.0.1");
                 q.executeUpdate();
             }
 
@@ -92,16 +93,18 @@ public final class CallRepository {
         }
     }
 
-    public void joinCall(String callId, String username, String displayName, int udpPort) {
+    public void joinCall(String callId, String username, String displayName, int udpPort, String ipAddress) {
         try (Connection c = database.connect()) {
             try (PreparedStatement q = c.prepareStatement(
-                    "INSERT INTO call_participant(call_id, username, display_name, status, udp_port) VALUES (?, ?, ?, 'CONNECTED', ?) " +
-                    "ON CONFLICT (call_id, username) DO UPDATE SET status = 'CONNECTED', udp_port = ?")) {
+                    "INSERT INTO call_participant(call_id, username, display_name, status, udp_port, ip_address) VALUES (?, ?, ?, 'CONNECTED', ?, ?) " +
+                    "ON CONFLICT (call_id, username) DO UPDATE SET status = 'CONNECTED', udp_port = ?, ip_address = ?")) {
                 q.setString(1, callId);
                 q.setString(2, username);
                 q.setString(3, displayName);
                 q.setInt(4, udpPort);
-                q.setInt(5, udpPort);
+                q.setString(5, ipAddress != null ? ipAddress : "127.0.0.1");
+                q.setInt(6, udpPort);
+                q.setString(7, ipAddress != null ? ipAddress : "127.0.0.1");
                 q.executeUpdate();
             }
 
@@ -164,11 +167,11 @@ public final class CallRepository {
         List<Participant> list = new ArrayList<>();
         try (Connection c = database.connect();
              PreparedStatement q = c.prepareStatement(
-                     "SELECT username, display_name, status, udp_port FROM call_participant WHERE call_id = ? AND status = 'CONNECTED' ORDER BY joined_at")) {
+                     "SELECT username, display_name, status, udp_port, COALESCE(ip_address, '127.0.0.1') FROM call_participant WHERE call_id = ? AND status = 'CONNECTED' ORDER BY joined_at")) {
             q.setString(1, callId);
             ResultSet rs = q.executeQuery();
             while (rs.next()) {
-                list.add(new Participant(rs.getString(1), rs.getString(2), rs.getString(3), rs.getInt(4)));
+                list.add(new Participant(rs.getString(1), rs.getString(2), rs.getString(3), rs.getInt(4), rs.getString(5)));
             }
             return list;
         } catch (SQLException e) {
@@ -177,5 +180,5 @@ public final class CallRepository {
     }
 
     public record CallSession(String callId, String roomId, String roomName, String hostUsername, String callType, String status) { }
-    public record Participant(String username, String displayName, String status, int udpPort) { }
+    public record Participant(String username, String displayName, String status, int udpPort, String ipAddress) { }
 }

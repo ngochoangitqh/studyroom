@@ -15,11 +15,20 @@ public final class ChatRepository {
     }
     public List<Message> recent(String roomId, int limit) {
         List<Message> messages = new ArrayList<>();
-        try (Connection c = database.connect(); PreparedStatement q = c.prepareStatement("SELECT sender, body FROM chat_message WHERE room_id = ? ORDER BY id DESC LIMIT ?")) {
+        try (Connection c = database.connect(); PreparedStatement q = c.prepareStatement("SELECT id, sender, body FROM chat_message WHERE room_id = ? ORDER BY id DESC LIMIT ?")) {
             q.setString(1, roomId); q.setInt(2, limit); ResultSet result = q.executeQuery();
-            while (result.next()) messages.add(0, new Message(result.getString(1), result.getString(2)));
+            while (result.next()) messages.add(0, new Message(result.getLong(1), result.getString(2), result.getString(3)));
             return messages;
         } catch (SQLException e) { throw new IllegalStateException("Không thể tải lịch sử chat.", e); }
+    }
+    public List<Message> messagesSince(String roomId, long lastId) {
+        List<Message> list = new ArrayList<>();
+        try (Connection c = database.connect(); PreparedStatement q = c.prepareStatement(
+                "SELECT id, sender, body FROM chat_message WHERE room_id = ? AND id > ? ORDER BY id ASC")) {
+            q.setString(1, roomId); q.setLong(2, lastId); ResultSet result = q.executeQuery();
+            while (result.next()) list.add(new Message(result.getLong(1), result.getString(2), result.getString(3)));
+            return list;
+        } catch (SQLException e) { return list; }
     }
     public Room createRoom(String owner, String name) {
         if (name == null || name.isBlank()) throw new IllegalArgumentException("Tên nhóm không được để trống.");
@@ -71,6 +80,6 @@ public final class ChatRepository {
             return users;
         } catch (SQLException e) { throw new IllegalStateException("Không thể tải danh sách người dùng.", e); }
     }
-    public record Message(String sender, String body) { }
+    public record Message(long id, String sender, String body) { }
     public record Room(String id, String name) { }
 }

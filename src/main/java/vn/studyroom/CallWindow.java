@@ -114,7 +114,8 @@ public final class CallWindow {
 
     public void start() {
         int localPort = voiceEngine.start(5100);
-        callRepo.joinCall(session.callId(), currentUser.username(), currentUser.displayName(), localPort);
+        String myIp = VoiceEngine.getLocalIp();
+        callRepo.joinCall(session.callId(), currentUser.username(), currentUser.displayName(), localPort, myIp);
 
         stage.show();
 
@@ -168,7 +169,11 @@ public final class CallWindow {
 
             // Connect UDP peer if not self
             if (!p.username().equals(currentUser.username()) && p.udpPort() > 0) {
-                voiceEngine.addPeer("127.0.0.1", p.udpPort());
+                String targetIp = p.ipAddress();
+                if (targetIp == null || targetIp.isBlank()) {
+                    targetIp = "127.0.0.1";
+                }
+                voiceEngine.addPeer(targetIp, p.udpPort());
             }
         }
     }

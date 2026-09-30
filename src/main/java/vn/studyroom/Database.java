@@ -88,10 +88,12 @@ public final class Database {
                   display_name VARCHAR(100) NOT NULL,
                   status VARCHAR(20) NOT NULL,
                   udp_port INT DEFAULT 0,
+                  ip_address VARCHAR(64) DEFAULT '127.0.0.1',
                   joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
                   PRIMARY KEY (call_id, username)
                 )
                 """);
+            statement.executeUpdate("ALTER TABLE call_participant ADD COLUMN IF NOT EXISTS ip_address VARCHAR(64) DEFAULT '127.0.0.1'");
         } catch (SQLException exception) { throw new IllegalStateException("Không thể khởi tạo Studyroom database.", exception); }
     }
 }

@@ -28,6 +28,8 @@ public final class StudyroomApp extends Application {
     private TcpChatNode node;
     private VBox messages;
     private String selectedRoomId;
+    private long lastLoadedMessageId = 0;
+    private Timer messageSyncTimer;
     private Button playButton;
     private Scene scene;
 
@@ -153,13 +155,46 @@ public final class StudyroomApp extends Application {
             conversation.getChildren().add(callBanner);
         }
 
+        if (messageSyncTimer != null) {
+            messageSyncTimer.cancel();
+            messageSyncTimer = null;
+        }
         messages = new VBox(16); messages.getStyleClass().add("messages"); messages.setPadding(new Insets(30, 28, 22, 28));
         List<ChatRepository.Message> history = chatRepository.recent(roomId, 50);
-        history.forEach(item -> addMessage(roomId, item.sender(), item.body(), item.sender().equals(user.displayName()), false));
+        lastLoadedMessageId = 0;
+        history.forEach(item -> {
+            addMessage(roomId, item.sender(), item.body(), item.sender().equals(user.displayName()), false);
+            if (item.id() > lastLoadedMessageId) lastLoadedMessageId = item.id();
+        });
         if (history.isEmpty()) { Label empty = new Label("Chưa có tin nhắn. Hãy bắt đầu cuộc trò chuyện."); empty.getStyleClass().add("empty-conversation"); messages.getChildren().add(empty); }
         Label today = new Label("Hôm nay"); today.getStyleClass().add("day-label"); messages.getChildren().add(0, today); VBox.setMargin(today, new Insets(0, 0, 12, 0));
         ScrollPane scroll = new ScrollPane(messages); scroll.setFitToWidth(true); scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER); scroll.getStyleClass().add("message-scroll"); VBox.setVgrow(scroll, Priority.ALWAYS);
-        HBox composerShell = new HBox(8); composerShell.getStyleClass().add("composer-shell"); Button attach = iconButton("⌇", "Đính kèm tệp"); TextField composer = new TextField(); composer.setPromptText("Nhắn tin..."); composer.getStyleClass().add("composer"); Button emoji = iconButton("☺", "Biểu tượng cảm xúc"); Button send = iconButton("➤", "Gửi tin nhắn"); send.getStyleClass().add("send-icon"); Runnable sendMessage = () -> { if (!composer.getText().isBlank()) { String text = composer.getText().trim(); addMessage(roomId, user.displayName(), text, true, true); if (node != null) node.broadcast(user.displayName(), text); composer.clear(); } }; send.setOnAction(e -> sendMessage.run()); composer.setOnAction(e -> sendMessage.run()); HBox.setHgrow(composer, Priority.ALWAYS); composerShell.getChildren().addAll(attach, composer, emoji, send);
+
+        messageSyncTimer = new Timer(true);
+        messageSyncTimer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                if (selectedRoomId == null || !selectedRoomId.equals(roomId)) return;
+                try {
+                    List<ChatRepository.Message> newMsgs = chatRepository.messagesSince(roomId, lastLoadedMessageId);
+                    if (!newMsgs.isEmpty()) {
+                        Platform.runLater(() -> {
+                            for (ChatRepository.Message m : newMsgs) {
+                                if (m.id() > lastLoadedMessageId) {
+                                    lastLoadedMessageId = m.id();
+                                    if (!m.sender().equals(user.displayName())) {
+                                        addMessage(roomId, m.sender(), m.body(), false, false);
+                                    }
+                                }
+                            }
+                            scroll.setVvalue(1.0);
+                        });
+                    }
+                } catch (Exception ignored) { }
+            }
+        }, 500, 500);
+
+        HBox composerShell = new HBox(8); composerShell.getStyleClass().add("composer-shell"); Button attach = iconButton("⌇", "Đính kèm tệp"); TextField composer = new TextField(); composer.setPromptText("Nhắn tin..."); composer.getStyleClass().add("composer"); Button emoji = iconButton("☺", "Biểu tượng cảm xúc"); Button send = iconButton("➤", "Gửi tin nhắn"); send.getStyleClass().add("send-icon"); Runnable sendMessage = () -> { if (!composer.getText().isBlank()) { String text = composer.getText().trim(); addMessage(roomId, user.displayName(), text, true, true); if (node != null) node.broadcast(user.displayName(), text); composer.clear(); scroll.setVvalue(1.0); } }; send.setOnAction(e -> sendMessage.run()); composer.setOnAction(e -> sendMessage.run()); HBox.setHgrow(composer, Priority.ALWAYS); composerShell.getChildren().addAll(attach, composer, emoji, send);
         conversation.getChildren().addAll(head, scroll, composerShell); showChatColumns(threads, conversation);
     }
     private void showChatColumns(VBox threads, VBox conversation) { HBox columns = new HBox(threads, conversation); HBox.setHgrow(conversation, Priority.ALWAYS); VBox.setVgrow(columns, Priority.ALWAYS); content.getChildren().add(columns); }
@@ -389,7 +424,8 @@ public final class StudyroomApp extends Application {
     private void startOrJoinCall(String roomId, String roomName, String callType) {
         CallRepository.CallSession session = callRepo.getActiveCall(roomId);
         if (session == null) {
-            session = callRepo.startCall(roomId, roomName, user.username(), user.displayName(), callType, 5100);
+            String myIp = VoiceEngine.getLocalIp();
+            session = callRepo.startCall(roomId, roomName, user.username(), user.displayName(), callType, 5100, myIp);
         }
         CallWindow callWin = new CallWindow(session, user, callRepo);
         callWin.start();
