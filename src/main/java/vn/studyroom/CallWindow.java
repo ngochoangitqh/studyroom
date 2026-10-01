@@ -1,5 +1,12 @@
 package vn.studyroom;
 
+import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
+
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -7,17 +14,18 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tooltip;
-import javafx.scene.layout.*;
+import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
-
-import java.util.List;
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Modern floating Call Window for 1-1 and Group voice calls.
- * Displays participants, timer, mute/deafen controls, and end call button.
+ * - Shows "Đang chờ..." until a second participant joins.
+ * - Timer starts only after someone answers.
+ * - Fires onCallEnded(durationString) callback when call ends.
  */
 public final class CallWindow {
     private final Stage stage = new Stage();
@@ -26,23 +34,30 @@ public final class CallWindow {
     private final CallRepository callRepo;
     private final VoiceEngine voiceEngine = new VoiceEngine();
 
+    // Optional callback: called with formatted duration when call ends
+    private Consumer<String> onCallEnded;
+
     private final FlowPane participantGrid = new FlowPane(16, 16);
     private final Label statusLabel = new Label("Đang kết nối...");
-    private final Label timerLabel = new Label("00:00");
-    private final Button micBtn = new Button("🎤");
+    private final Label timerLabel  = new Label("");
+    private final Button micBtn     = new Button("🎤");
     private final Button speakerBtn = new Button("🔊");
 
     private Timer pollTimer;
     private final AtomicInteger secondsElapsed = new AtomicInteger(0);
+    private final AtomicBoolean callAnswered   = new AtomicBoolean(false); // true once ≥2 people in call
 
     public CallWindow(CallRepository.CallSession session, User currentUser, CallRepository callRepo) {
-        this.session = session;
+        this.session     = session;
         this.currentUser = currentUser;
-        this.callRepo = callRepo;
-
+        this.callRepo    = callRepo;
         buildUI();
     }
 
+    /** Set a callback that fires when this call ends. Receives a formatted duration string like "2:35". */
+    public void setOnCallEnded(Consumer<String> cb) { this.onCallEnded = cb; }
+
+    // ── UI ──────────────────────────────────────────────────────────────────────
     private void buildUI() {
         stage.setTitle("Cuộc gọi · " + session.roomName());
         stage.setMinWidth(460);
@@ -58,6 +73,7 @@ public final class CallWindow {
 
         statusLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #9d9db5;");
         timerLabel.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #7c5cff;");
+        timerLabel.setVisible(false); // hidden until call is answered
 
         VBox header = new VBox(4, title, statusLabel, timerLabel);
         header.setAlignment(Pos.CENTER);
@@ -96,7 +112,6 @@ public final class CallWindow {
         endBtn.setOnAction(e -> closeCall());
 
         controls.getChildren().addAll(micBtn, speakerBtn, endBtn);
-
         root.getChildren().addAll(header, participantGrid, controls);
 
         Scene scene = new Scene(root);
@@ -112,49 +127,69 @@ public final class CallWindow {
         );
     }
 
+    // ── Lifecycle ────────────────────────────────────────────────────────────────
     public void start() {
         int localPort = voiceEngine.start(5100);
-        String myIp = VoiceEngine.getLocalIp();
+        String myIp   = VoiceEngine.getLocalIp();
         callRepo.joinCall(session.callId(), currentUser.username(), currentUser.displayName(), localPort, myIp);
+
+        // Initial waiting state
+        statusLabel.setText("Đang chờ người khác tham gia...");
+        timerLabel.setVisible(false);
 
         stage.show();
 
-        // Timer and participant sync
         pollTimer = new Timer(true);
         pollTimer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
+            @Override public void run() {
                 Platform.runLater(() -> syncState());
             }
         }, 500, 1000);
     }
 
+    // ── Sync ─────────────────────────────────────────────────────────────────────
     private void syncState() {
-        // Update timer
-        int sec = secondsElapsed.incrementAndGet();
-        int mins = sec / 60;
-        int secs = sec % 60;
-        timerLabel.setText(String.format("%02d:%02d", mins, secs));
-
-        // Sync participants from database
         List<CallRepository.Participant> list = callRepo.getParticipants(session.callId());
+
+        // Call was ended by the other side
         if (list.isEmpty()) {
             closeCall();
             return;
         }
 
-        statusLabel.setText(list.size() > 1 ? "Đang đàm thoại (" + list.size() + " người)" : "Đang chờ người khác tham gia...");
+        boolean hasOthers = list.size() > 1;
 
+        if (hasOthers && !callAnswered.get()) {
+            // Someone just picked up → start timer
+            callAnswered.set(true);
+            timerLabel.setVisible(true);
+            secondsElapsed.set(0);
+        }
+
+        if (callAnswered.get()) {
+            // Tick the timer
+            int sec  = secondsElapsed.incrementAndGet();
+            int mins = sec / 60;
+            int secs = sec % 60;
+            timerLabel.setText(String.format("%02d:%02d", mins, secs));
+            statusLabel.setText("Đang đàm thoại (" + list.size() + " người)");
+        } else {
+            // Still waiting
+            statusLabel.setText("Đang chờ người khác tham gia...");
+            timerLabel.setVisible(false);
+        }
+
+        // Render participants
         participantGrid.getChildren().clear();
         for (CallRepository.Participant p : list) {
             VBox tile = new VBox(8);
             tile.setAlignment(Pos.CENTER);
             tile.setPadding(new Insets(10));
-            tile.setStyle("-fx-background-color: #242436; -fx-background-radius: 16px; -fx-min-width: 110px; -fx-min-height: 110px;");
+            tile.setStyle("-fx-background-color: #242436; -fx-background-radius: 16px;" +
+                          "-fx-min-width: 110px; -fx-min-height: 110px;");
 
             StackPane avatar = new StackPane();
-            String initials = initials(p.displayName());
-            Label mark = new Label(initials);
+            Label mark = new Label(initials(p.displayName()));
             mark.setStyle("-fx-text-fill: white; -fx-font-weight: 800; -fx-font-size: 16px;");
             avatar.getChildren().add(mark);
             avatar.setMinSize(52, 52);
@@ -169,28 +204,40 @@ public final class CallWindow {
 
             // Connect UDP peer if not self
             if (!p.username().equals(currentUser.username()) && p.udpPort() > 0) {
-                String targetIp = p.ipAddress();
-                if (targetIp == null || targetIp.isBlank()) {
-                    targetIp = "127.0.0.1";
-                }
-                voiceEngine.addPeer(targetIp, p.udpPort());
+                String ip = (p.ipAddress() == null || p.ipAddress().isBlank()) ? "127.0.0.1" : p.ipAddress();
+                voiceEngine.addPeer(ip, p.udpPort());
             }
         }
+    }
+
+    // ── Close ─────────────────────────────────────────────────────────────────────
+    public void closeCall() {
+        if (pollTimer != null) { pollTimer.cancel(); pollTimer = null; }
+        voiceEngine.stop();
+        callRepo.leaveCall(session.callId(), currentUser.username());
+
+        // Build duration string
+        String duration = formatDuration(secondsElapsed.get());
+        boolean wasConnected = callAnswered.get();
+
+        stage.close();
+
+        // Fire callback so the chat can show the call summary
+        if (onCallEnded != null) {
+            onCallEnded.accept(wasConnected ? duration : null); // null = call was not answered
+        }
+    }
+
+    private static String formatDuration(int totalSeconds) {
+        if (totalSeconds < 60) return totalSeconds + " giây";
+        int mins = totalSeconds / 60;
+        int secs = totalSeconds % 60;
+        return String.format("%d:%02d", mins, secs);
     }
 
     private static String initials(String name) {
         String[] parts = name.trim().split("\\s+");
         return parts.length == 1 ? parts[0].substring(0, Math.min(2, parts[0].length())).toUpperCase()
                                  : ("" + parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
-    }
-
-    public void closeCall() {
-        if (pollTimer != null) {
-            pollTimer.cancel();
-            pollTimer = null;
-        }
-        voiceEngine.stop();
-        callRepo.leaveCall(session.callId(), currentUser.username());
-        stage.close();
     }
 }

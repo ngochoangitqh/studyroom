@@ -307,9 +307,14 @@ public final class StudyroomApp extends Application {
                     if (p.length > 1) fn = p[1];
                 } catch (Exception ignored) {}
                 previewText = latest.getFirst().sender() + ": 📎 " + fn;
+            } else if (b != null && b.startsWith("[CALL:")) {
+                String inner2 = b.substring(6, b.length() - 1);
+                boolean isMissed = inner2.startsWith("missed");
+                previewText = isMissed ? "📵 Cuộc gọi nhỡ" : "📞 Cuộc gọi thoại";
             } else {
                 previewText = latest.getFirst().sender() + ": " + b;
             }
+
         }
         Label preview = new Label(previewText);
         preview.getStyleClass().add("thread-preview");
@@ -348,7 +353,41 @@ public final class StudyroomApp extends Application {
                 Label fallback = new Label("🎨 [Icon: " + code + "]");
                 bubble.getChildren().addAll(fallback, time);
             }
+        } else if (text != null && text.startsWith("[CALL:") && text.endsWith("]")) {
+            // === Messenger-style Call Summary Card ===
+            String inner = text.substring(6, text.length() - 1); // duration:roomName OR missed:roomName
+            String[] parts = inner.split(":", 2);
+            String durationOrMissed = parts[0];
+            boolean missed = "missed".equals(durationOrMissed);
+
+            // Build card
+            HBox callCard = new HBox(10);
+            callCard.setAlignment(Pos.CENTER_LEFT);
+            callCard.setPadding(new Insets(10, 14, 10, 14));
+            callCard.setStyle(missed
+                ? (mine ? "-fx-background-color: rgba(239,68,68,0.18); -fx-background-radius: 16;" : "-fx-background-color: rgba(239,68,68,0.12); -fx-background-radius: 16;")
+                : (mine ? "-fx-background-color: rgba(255,255,255,0.1); -fx-background-radius: 16;"  : "-fx-background-color: #f0f9ff; -fx-background-radius: 16;"));
+
+            Label phoneIcon = new Label(missed ? "📵" : "📞");
+            phoneIcon.setStyle("-fx-font-size: 22px;");
+
+            VBox callInfo = new VBox(2);
+            Label callTitle = new Label(missed ? "Cuộc gọi nhỡ" : "Cuộc gọi thoại");
+            callTitle.setStyle("-fx-font-size: 13px; -fx-font-weight: 700; " +
+                (missed ? "-fx-text-fill: #ef4444;" : (mine ? "-fx-text-fill: white;" : "-fx-text-fill: #1f2937;")));
+            Label callMeta = new Label(missed ? "Không có ai trả lời" : "Thời lượng: " + durationOrMissed);
+            callMeta.setStyle("-fx-font-size: 11px; " + (mine ? "-fx-text-fill: rgba(255,255,255,0.65);" : "-fx-text-fill: #6b7280;"));
+            callInfo.getChildren().addAll(callTitle, callMeta);
+
+            callCard.getChildren().addAll(phoneIcon, callInfo);
+
+            bubble.setStyle(missed
+                ? (mine ? "-fx-background-color: transparent; -fx-padding: 0;" : "-fx-background-color: transparent; -fx-padding: 0;")
+                : "-fx-background-color: transparent; -fx-padding: 0;");
+            bubble.getChildren().addAll(callCard, time);
+
         } else if (text != null && text.startsWith("[IMAGE:") && text.endsWith("]")) {
+
             String inner = text.substring(7, text.length() - 1);
             int colonIdx = inner.indexOf(':');
             String attId = colonIdx != -1 ? inner.substring(0, colonIdx) : inner;
@@ -1073,10 +1112,22 @@ public final class StudyroomApp extends Application {
             String myIp = VoiceEngine.getLocalIp();
             session = callRepo.startCall(roomId, roomName, user.username(), user.displayName(), callType, 5100, myIp);
         }
+        final CallRepository.CallSession finalSession = session;
         CallWindow callWin = new CallWindow(session, user, callRepo);
+        callWin.setOnCallEnded(duration -> {
+            String payload;
+            if (duration != null) {
+                payload = "[CALL:" + duration + ":" + finalSession.roomName() + "]";
+            } else {
+                payload = "[CALL:missed:" + finalSession.roomName() + "]";
+            }
+            addMessage(finalSession.roomId(), user.displayName(), payload, true, true);
+            if (node != null) node.broadcast(user.displayName(), payload);
+        });
         callWin.start();
         showChat(roomId, roomName, "GROUP".equals(callType));
     }
+
 
     // ─── Ringtone helper ────────────────────────────────────────────────────────
     private Clip generateRingtone() {
@@ -1288,8 +1339,16 @@ public final class StudyroomApp extends Application {
         answerBtn.setOnMouseClicked(e -> {
             closeAll.run();
             CallWindow callWin = new CallWindow(incoming, user, callRepo);
+            callWin.setOnCallEnded(duration -> {
+                String payload = (duration != null)
+                    ? "[CALL:" + duration + ":" + incoming.roomName() + "]"
+                    : "[CALL:missed:" + incoming.roomName() + "]";
+                addMessage(incoming.roomId(), user.displayName(), payload, false, true);
+                if (node != null) node.broadcast(user.displayName(), payload);
+            });
             callWin.start();
         });
+
 
         declineBtn.setOnMouseClicked(e -> {
             closeAll.run();
