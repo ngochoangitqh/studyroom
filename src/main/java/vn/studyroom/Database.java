@@ -104,10 +104,14 @@ public final class Database {
                   owner_username VARCHAR(64) NOT NULL REFERENCES app_user(username),
                   current_slide INT DEFAULT 4,
                   is_presenting BOOLEAN DEFAULT FALSE,
+                  host_ip VARCHAR(64) DEFAULT '127.0.0.1',
+                  screen_port INT DEFAULT 5200,
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
                 )
                 """);
             statement.executeUpdate("ALTER TABLE study_course ADD COLUMN IF NOT EXISTS is_presenting BOOLEAN DEFAULT FALSE");
+            statement.executeUpdate("ALTER TABLE study_course ADD COLUMN IF NOT EXISTS host_ip VARCHAR(64) DEFAULT '127.0.0.1'");
+            statement.executeUpdate("ALTER TABLE study_course ADD COLUMN IF NOT EXISTS screen_port INT DEFAULT 5200");
             statement.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS course_member (
                   course_id VARCHAR(64) NOT NULL REFERENCES study_course(course_id),

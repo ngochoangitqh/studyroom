@@ -12,6 +12,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import java.util.Timer;
@@ -609,6 +611,7 @@ public final class StudyroomApp extends Application {
         Button backBtn = new Button("← Danh sách");
         backBtn.getStyleClass().add("button");
         backBtn.setOnAction(e -> {
+            ScreenShareEngine.getInstance().stop();
             if (classroomSyncTimer != null) { classroomSyncTimer.cancel(); classroomSyncTimer = null; }
             activeCourseId = null;
             showCourseList();
@@ -727,19 +730,37 @@ public final class StudyroomApp extends Application {
         HBox.setHgrow(leftPane, Priority.ALWAYS);
         VBox.setVgrow(leftPane, Priority.ALWAYS);
 
-        VBox deck = new VBox(16);
+        VBox deck = new VBox(12);
         deck.getStyleClass().add("slide-frame");
         VBox.setVgrow(deck, Priority.ALWAYS);
 
+        ImageView screenView = new ImageView();
+        screenView.setPreserveRatio(true);
+        screenView.setSmooth(true);
+
+        if (course.isPresenting()) {
+            if (isHost) {
+                ScreenShareEngine.getInstance().startHost(course.screenPort(), img -> {
+                    screenView.setImage(img);
+                });
+            } else {
+                ScreenShareEngine.getInstance().startClient(course.hostIp(), course.screenPort(), img -> {
+                    screenView.setImage(img);
+                });
+            }
+        } else {
+            ScreenShareEngine.getInstance().stop();
+        }
+
         if (!course.isPresenting()) {
-            // STANDBY / NOT PRESENTING STATE
+            // STANDBY STATE (No screen sharing currently active)
             HBox standbyHeader = new HBox(10);
             standbyHeader.setAlignment(Pos.CENTER_LEFT);
-            Label standbyStatus = new Label(isHost ? "Khu vực Trình chiếu của Chủ phòng" : "Màn hình Trình chiếu bài giảng");
+            Label standbyStatus = new Label(isHost ? "Khu vực Trình chiếu Màn hình của Chủ phòng" : "Màn hình Trình chiếu Trực tuyến");
             standbyStatus.setStyle("-fx-font-weight: 800; -fx-font-size: 14px; -fx-text-fill: #4b5563;");
             Region hgap = new Region();
             HBox.setHgrow(hgap, Priority.ALWAYS);
-            Label badge = new Label("● Chưa trình chiếu");
+            Label badge = new Label("● Chưa phát sóng");
             badge.setStyle("-fx-background-color: #f3f4f6; -fx-text-fill: #6b7280; -fx-font-size: 11px; -fx-font-weight: bold; -fx-padding: 4 10; -fx-background-radius: 8;");
             standbyHeader.getChildren().addAll(standbyStatus, hgap, badge);
 
@@ -752,45 +773,47 @@ public final class StudyroomApp extends Application {
             iconLbl.setStyle("-fx-font-size: 50px; -fx-background-color: " + (isHost ? "-violet-soft" : "#f3f4f6") + "; -fx-background-radius: 36; -fx-padding: 16 22;");
 
             if (isHost) {
-                Label titleLbl = new Label("Bạn là chủ phòng của lớp học này");
+                Label titleLbl = new Label("Khu vực Trình chiếu Màn hình của Chủ phòng");
                 titleLbl.setStyle("-fx-font-size: 20px; -fx-font-weight: 800; -fx-text-fill: -ink;");
 
-                Label descLbl = new Label("Ô trình chiếu bài giảng đang ở trạng thái chờ.\nChỉ khi bạn bấm \"Bắt đầu trình chiếu\", màn hình slide bài giảng mới được phát cho tất cả học viên trong phòng cùng theo dõi.");
+                Label descLbl = new Label("Bạn là chủ phòng của lớp học này.\nKhi bạn nhấn \"Bắt đầu chia sẻ màn hình\", toàn bộ màn hình máy tính của bạn sẽ được truyền hình trực tiếp với độ nét cao cho tất cả học viên trong phòng cùng theo dõi bài giảng, slide, mã nguồn hoặc tài liệu.");
                 descLbl.setStyle("-fx-text-fill: -muted; -fx-font-size: 14px; -fx-text-alignment: CENTER; -fx-line-spacing: 4;");
                 descLbl.setWrapText(true);
 
-                Button startBtn = new Button("🖥️  Bắt đầu trình chiếu");
+                Button startBtn = new Button("🖥️  Bắt đầu chia sẻ màn hình");
                 startBtn.getStyleClass().addAll("button", "button-primary");
                 startBtn.setStyle("-fx-font-size: 15px; -fx-padding: 10 26; -fx-font-weight: 800;");
                 startBtn.setOnAction(e -> {
-                    courseRepo.setPresenting(course.id(), true);
-                    CourseRepository.Course updated = courseRepo.getCourse(course.id());
-                    renderLiveClassroom(updated, container, onGoToMaterials);
-                    toast("Đang phát trực tiếp bài giảng cho tất cả thành viên trong phòng.");
+                    String myIp = VoiceEngine.getLocalIp();
+                    int port = 5200;
+                    courseRepo.startScreenShare(course.id(), myIp, port);
+                    CourseRepository.Course fresh = courseRepo.getCourse(course.id());
+                    renderLiveClassroom(fresh, container, onGoToMaterials);
+                    toast("Đang phát trực tiếp màn hình máy tính của bạn cho cả phòng!");
                 });
 
                 HBox subActions = new HBox(12);
                 subActions.setAlignment(Pos.CENTER);
-                Button prepDocBtn = new Button("📚 Xem kho tài liệu");
+                Button prepDocBtn = new Button("📚 Xem kho tài liệu & Slide");
                 prepDocBtn.getStyleClass().add("button");
                 prepDocBtn.setOnAction(e -> onGoToMaterials.run());
 
-                Button testCamBtn = new Button("✏️ Bảng trắng");
-                testCamBtn.getStyleClass().add("button");
-                testCamBtn.setOnAction(e -> toast("Bảng trắng tương tác sẵn sàng khi bắt đầu buổi học."));
+                Button testBoardBtn = new Button("✏️ Bảng trắng");
+                testBoardBtn.getStyleClass().add("button");
+                testBoardBtn.setOnAction(e -> toast("Bảng trắng tương tác sẵn sàng khi bắt đầu buổi học."));
 
-                subActions.getChildren().addAll(prepDocBtn, testCamBtn);
+                subActions.getChildren().addAll(prepDocBtn, testBoardBtn);
 
                 centerBox.getChildren().addAll(iconLbl, titleLbl, descLbl, startBtn, subActions);
             } else {
-                Label titleLbl = new Label("Chờ chủ phòng bắt đầu trình chiếu...");
+                Label titleLbl = new Label("Chờ chủ phòng chia sẻ màn hình...");
                 titleLbl.setStyle("-fx-font-size: 20px; -fx-font-weight: 800; -fx-text-fill: -ink;");
 
-                Label descLbl = new Label("Chủ phòng (@" + course.ownerUsername() + ") hiện chưa bật chế độ trình chiếu slide bài giảng.\nMàn hình slide sẽ tự động xuất hiện ngay khi chủ phòng bắt đầu phát.");
+                Label descLbl = new Label("Chủ phòng (@" + course.ownerUsername() + ") hiện chưa bật tính năng chia sẻ màn hình máy tính.\nMàn hình trình chiếu của chủ phòng sẽ tự động xuất hiện tại đây ngay khi chủ phòng phát sóng.");
                 descLbl.setStyle("-fx-text-fill: -muted; -fx-font-size: 14px; -fx-text-alignment: CENTER; -fx-line-spacing: 4;");
                 descLbl.setWrapText(true);
 
-                Label waitBadge = new Label("⏳ Đang đợi tín hiệu phát sóng từ chủ phòng...");
+                Label waitBadge = new Label("⏳ Đang kết nối luồng phát sóng của chủ phòng...");
                 waitBadge.setStyle("-fx-background-color: #fef3c7; -fx-text-fill: #b45309; -fx-font-size: 12px; -fx-font-weight: bold; -fx-padding: 8 16; -fx-background-radius: 14;");
 
                 Button viewDocBtn = new Button("📚 Xem trước Slide & Tài liệu học tập");
@@ -802,114 +825,72 @@ public final class StudyroomApp extends Application {
 
             deck.getChildren().addAll(standbyHeader, centerBox);
         } else {
-            // PRESENTING STATE (Slide Presentation Deck is ACTIVE)
-            HBox slideHeader = new HBox(14);
-            slideHeader.setAlignment(Pos.CENTER_LEFT);
+            // LIVE SCREEN SHARING ACTIVE
+            HBox streamHeader = new HBox(14);
+            streamHeader.setAlignment(Pos.CENTER_LEFT);
 
-            final int[] slideNumber = {Math.max(1, Math.min(course.currentSlide(), 12))};
-
-            Label liveBadge = new Label("🔴 ĐANG CHIẾU");
+            Label liveBadge = new Label("🔴 ĐANG CHIA SẺ MÀN HÌNH");
             liveBadge.setStyle("-fx-background-color: #fee2e2; -fx-text-fill: #dc2626; -fx-font-weight: 800; -fx-font-size: 11px; -fx-padding: 4 8; -fx-background-radius: 6;");
 
-            Label slideTitleHeader = new Label("Slide " + slideNumber[0] + ": Phản ứng Este hóa");
-            slideTitleHeader.setStyle("-fx-font-weight: 800; -fx-font-size: 14px; -fx-text-fill: #374151;");
+            Label hostInfo = new Label(isHost ? "Màn hình của bạn đang phát trực tiếp" : "Màn hình trực tiếp của Chủ phòng @" + course.ownerUsername());
+            hostInfo.setStyle("-fx-font-weight: 800; -fx-font-size: 14px; -fx-text-fill: #374151;");
 
-            Region navGap = new Region();
-            HBox.setHgrow(navGap, Priority.ALWAYS);
+            Region hgap = new Region();
+            HBox.setHgrow(hgap, Priority.ALWAYS);
 
-            HBox navBox = new HBox(8);
-            navBox.setAlignment(Pos.CENTER);
-            Button prevSlide = new Button("‹");
-            prevSlide.getStyleClass().add("button");
-            prevSlide.setStyle("-fx-font-weight: bold; -fx-padding: 2 10;");
-            Label pageIndicator = new Label(slideNumber[0] + " / 12");
-            pageIndicator.setStyle("-fx-font-weight: 700; -fx-text-fill: #4b5563;");
-            Button nextSlide = new Button("›");
-            nextSlide.getStyleClass().add("button");
-            nextSlide.setStyle("-fx-font-weight: bold; -fx-padding: 2 10;");
+            Label resBadge = new Label("1280 × 720 · 15 FPS · HD");
+            resBadge.setStyle("-fx-font-size: 12px; -fx-text-fill: #6b7280;");
 
-            if (!isHost) {
-                prevSlide.setDisable(true);
-                nextSlide.setDisable(true);
-                pageIndicator.setTooltip(new Tooltip("Chủ phòng đang điều khiển chuyển slide"));
-            }
-
-            navBox.getChildren().addAll(prevSlide, pageIndicator, nextSlide);
-
-            Region rightGap = new Region();
-            HBox.setHgrow(rightGap, Priority.ALWAYS);
-
-            Label zoom = new Label("100%");
-            zoom.setStyle("-fx-font-size: 13px; -fx-text-fill: #6b7280;");
-            Button fullscreenBtn = new Button("⛶");
+            Button fullscreenBtn = new Button("⛶ Toàn màn hình");
             fullscreenBtn.getStyleClass().add("button");
-            fullscreenBtn.setStyle("-fx-padding: 2 8;");
-            fullscreenBtn.setOnAction(e -> toast("Chế độ toàn màn hình trình chiếu."));
-
-            slideHeader.getChildren().addAll(liveBadge, slideTitleHeader, navGap, navBox, rightGap, zoom, fullscreenBtn);
-
-            // Slide Content
-            VBox slideContent = new VBox(20);
-            slideContent.setAlignment(Pos.CENTER_LEFT);
-            VBox.setVgrow(slideContent, Priority.ALWAYS);
-
-            Label mainTitle = new Label("Phản ứng Este hóa");
-            mainTitle.getStyleClass().add("slide-title");
-
-            Label introText = new Label("Este được tạo thành từ phản ứng giữa axit cacboxylic và ancol, trong môi trường axit.");
-            introText.setStyle("-fx-font-size: 15px; -fx-text-fill: #4b5563; -fx-line-spacing: 4;");
-            introText.setWrapText(true);
-
-            // Formula Card
-            HBox formulaBox = new HBox();
-            formulaBox.setAlignment(Pos.CENTER);
-            formulaBox.setStyle("-fx-background-color: #1e1e2d; -fx-background-radius: 12; -fx-padding: 18 24;");
-            Label formulaLabel = new Label("R—COOH   +   R'—OH    ⇌    R—COOR'   +   H₂O");
-            formulaLabel.setStyle("-fx-font-family: 'Consolas', 'Courier New', monospace; -fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #f3f4f6;");
-            formulaBox.getChildren().add(formulaLabel);
-
-            // Purple note box
-            VBox noteBox = new VBox(8);
-            noteBox.getStyleClass().add("slide-note-box");
-            Label noteTitle = new Label("Lưu ý");
-            noteTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: 800; -fx-text-fill: #6b21a8;");
-            Label noteItem1 = new Label("•  Phản ứng thuận nghịch");
-            noteItem1.setStyle("-fx-font-size: 14px; -fx-text-fill: #581c87;");
-            Label noteItem2 = new Label("•  Cần môi trường axit và đun nóng");
-            noteItem2.setStyle("-fx-font-size: 14px; -fx-text-fill: #581c87;");
-            noteBox.getChildren().addAll(noteTitle, noteItem1, noteItem2);
-
-            slideContent.getChildren().addAll(mainTitle, introText, formulaBox, noteBox);
-
-            Runnable updateSlideView = () -> {
-                pageIndicator.setText(slideNumber[0] + " / 12");
-                slideTitleHeader.setText("Slide " + slideNumber[0] + ": " + (slideNumber[0] == 4 ? "Phản ứng Este hóa" : "Chuyên đề Este - Lipit (Phần " + slideNumber[0] + ")"));
-                courseRepo.updateSlide(course.id(), slideNumber[0]);
-            };
-
-            prevSlide.setOnAction(e -> {
-                if (slideNumber[0] > 1) {
-                    slideNumber[0]--;
-                    updateSlideView.run();
-                }
-            });
-            nextSlide.setOnAction(e -> {
-                if (slideNumber[0] < 12) {
-                    slideNumber[0]++;
-                    updateSlideView.run();
-                }
+            fullscreenBtn.setStyle("-fx-font-weight: bold; -fx-padding: 4 10;");
+            fullscreenBtn.setOnAction(e -> {
+                Stage fullStage = new Stage();
+                fullStage.setTitle("Màn hình trình chiếu · " + course.title());
+                ImageView fullView = new ImageView();
+                fullView.setPreserveRatio(true);
+                fullView.imageProperty().bind(screenView.imageProperty());
+                StackPane fullRoot = new StackPane(fullView);
+                fullRoot.setStyle("-fx-background-color: #0b0c10;");
+                fullView.fitWidthProperty().bind(fullRoot.widthProperty());
+                fullView.fitHeightProperty().bind(fullRoot.heightProperty());
+                Scene fullScene = new Scene(fullRoot, 1280, 720);
+                fullStage.setScene(fullScene);
+                fullStage.setFullScreen(true);
+                fullStage.show();
             });
 
-            // Slide Actions
-            HBox slideActions = new HBox(10);
+            streamHeader.getChildren().addAll(liveBadge, hostInfo, hgap, resBadge, fullscreenBtn);
+
+            // Screen View Frame
+            StackPane screenBox = new StackPane();
+            screenBox.setStyle("-fx-background-color: #0c0d14; -fx-background-radius: 12; -fx-padding: 8; -fx-alignment: center;");
+            VBox.setVgrow(screenBox, Priority.ALWAYS);
+
+            screenView.fitWidthProperty().bind(deck.widthProperty().subtract(36));
+            screenView.fitHeightProperty().bind(deck.heightProperty().subtract(110));
+
+            Label loadingNotice = new Label("Đang nhận luồng hình ảnh màn hình...");
+            loadingNotice.setStyle("-fx-text-fill: #9ca3af; -fx-font-size: 14px;");
+
+            screenBox.getChildren().addAll(loadingNotice, screenView);
+            screenView.imageProperty().addListener((obs, oldVal, newVal) -> {
+                if (newVal != null) loadingNotice.setVisible(false);
+            });
+
+            // Action Bar
+            HBox streamActions = new HBox(10);
+            streamActions.setAlignment(Pos.CENTER_LEFT);
+
             if (isHost) {
-                Button stopBtn = new Button("⏹️  Dừng trình chiếu");
+                Button stopBtn = new Button("⏹️  Dừng chia sẻ màn hình");
                 stopBtn.setStyle("-fx-background-color: #fee2e2; -fx-text-fill: #dc2626; -fx-font-weight: 800; -fx-background-radius: 8; -fx-padding: 8 16;");
                 stopBtn.setOnAction(e -> {
-                    courseRepo.setPresenting(course.id(), false);
-                    CourseRepository.Course updated = courseRepo.getCourse(course.id());
-                    renderLiveClassroom(updated, container, onGoToMaterials);
-                    toast("Đã dừng trình chiếu bài giảng.");
+                    courseRepo.stopScreenShare(course.id());
+                    ScreenShareEngine.getInstance().stop();
+                    CourseRepository.Course fresh = courseRepo.getCourse(course.id());
+                    renderLiveClassroom(fresh, container, onGoToMaterials);
+                    toast("Đã dừng chia sẻ màn hình.");
                 });
 
                 Button boardBtn = new Button("✏️  Bảng trắng");
@@ -920,11 +901,11 @@ public final class StudyroomApp extends Application {
                 noteBtn.getStyleClass().add("button");
                 noteBtn.setOnAction(e -> toast("Ghi chú cá nhân đã lưu."));
 
-                slideActions.getChildren().addAll(stopBtn, boardBtn, noteBtn);
+                streamActions.getChildren().addAll(stopBtn, boardBtn, noteBtn);
             } else {
-                Label hostPresentingLbl = new Label("Chủ phòng @" + course.ownerUsername() + " đang trình chiếu");
-                hostPresentingLbl.setStyle("-fx-text-fill: -muted; -fx-font-size: 13px; -fx-alignment: CENTER_LEFT;");
-                HBox.setHgrow(hostPresentingLbl, Priority.ALWAYS);
+                Label studentStatus = new Label("Đang theo dõi màn hình bài giảng trực tiếp từ chủ phòng");
+                studentStatus.setStyle("-fx-text-fill: -muted; -fx-font-size: 13px;");
+                HBox.setHgrow(studentStatus, Priority.ALWAYS);
 
                 Button handBtn = new Button("🙋  Giơ tay phát biểu");
                 handBtn.getStyleClass().addAll("button");
@@ -932,12 +913,12 @@ public final class StudyroomApp extends Application {
 
                 Button noteBtn = new Button("📄  Ghi chú cá nhân");
                 noteBtn.getStyleClass().add("button");
-                noteBtn.setOnAction(e -> toast("Mở sổ ghi chú bài giảng cá nhân."));
+                noteBtn.setOnAction(e -> toast("Mở sổ ghi chú cá nhân."));
 
-                slideActions.getChildren().addAll(hostPresentingLbl, handBtn, noteBtn);
+                streamActions.getChildren().addAll(studentStatus, handBtn, noteBtn);
             }
 
-            deck.getChildren().addAll(slideHeader, slideContent, slideActions);
+            deck.getChildren().addAll(streamHeader, screenBox, streamActions);
         }
 
         // BOTTOM DOCK BAR
@@ -963,13 +944,33 @@ public final class StudyroomApp extends Application {
             toast(camOff[0] ? "Đã tắt camera." : "Đã bật camera.");
         });
 
-        Button shareScreenBtn = new Button("🖥️ Chia sẻ màn hình");
-        shareScreenBtn.getStyleClass().add("dock-btn");
-        shareScreenBtn.setOnAction(e -> toast("Đang kết nối luồng chia sẻ màn hình..."));
+        Button shareScreenBtn = new Button(course.isPresenting() && isHost ? "⏹️ Dừng chia sẻ" : "🖥️ Chia sẻ màn hình");
+        shareScreenBtn.getStyleClass().add(course.isPresenting() && isHost ? "dock-btn-danger" : "dock-btn");
+        shareScreenBtn.setOnAction(e -> {
+            if (isHost) {
+                if (course.isPresenting()) {
+                    courseRepo.stopScreenShare(course.id());
+                    ScreenShareEngine.getInstance().stop();
+                    CourseRepository.Course fresh = courseRepo.getCourse(course.id());
+                    renderLiveClassroom(fresh, container, onGoToMaterials);
+                    toast("Đã dừng chia sẻ màn hình.");
+                } else {
+                    String myIp = VoiceEngine.getLocalIp();
+                    int port = 5200;
+                    courseRepo.startScreenShare(course.id(), myIp, port);
+                    CourseRepository.Course fresh = courseRepo.getCourse(course.id());
+                    renderLiveClassroom(fresh, container, onGoToMaterials);
+                    toast("Đang phát trực tiếp màn hình máy tính của bạn cho cả phòng!");
+                }
+            } else {
+                toast("Chỉ chủ phòng mới có quyền chia sẻ màn hình trong phòng học.");
+            }
+        });
 
         Button leaveBtn = new Button("🔴 Rời phòng");
         leaveBtn.getStyleClass().addAll("dock-btn-danger");
         leaveBtn.setOnAction(e -> {
+            ScreenShareEngine.getInstance().stop();
             if (classroomSyncTimer != null) { classroomSyncTimer.cancel(); classroomSyncTimer = null; }
             activeCourseId = null;
             showCourseList();
@@ -1464,6 +1465,7 @@ public final class StudyroomApp extends Application {
     }
     private void toast(String message) { Label note = new Label(message); note.getStyleClass().add("toast"); content.getChildren().add(note); }
     @Override public void stop() {
+        ScreenShareEngine.getInstance().stop();
         if (node != null) node.close();
         if (classroomSyncTimer != null) classroomSyncTimer.cancel();
         if (messageSyncTimer != null) messageSyncTimer.cancel();

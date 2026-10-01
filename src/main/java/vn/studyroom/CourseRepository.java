@@ -42,7 +42,7 @@ public final class CourseRepository {
             // Seed default materials and schedule
             seedDefaults(c, courseId, ownerUsername);
 
-            return new Course(courseId, normalizedCode, title.trim(), description, ownerUsername, password.trim(), 4, 1, false);
+            return new Course(courseId, normalizedCode, title.trim(), description, ownerUsername, password.trim(), 4, 1, false, "127.0.0.1", 5200);
         } catch (SQLException e) {
             if ("23505".equals(e.getSQLState())) {
                 throw new IllegalArgumentException("Mã phòng học \"" + normalizedCode + "\" đã tồn tại. Vui lòng chọn mã khác.");
@@ -65,9 +65,11 @@ public final class CourseRepository {
             String storedPassword;
             int currentSlide;
             boolean isPresenting;
+            String hostIp;
+            int screenPort;
 
             try (PreparedStatement q = c.prepareStatement(
-                    "SELECT course_id, title, description, owner_username, course_password, current_slide, is_presenting FROM study_course WHERE UPPER(course_code) = ?")) {
+                    "SELECT course_id, title, description, owner_username, course_password, current_slide, is_presenting, host_ip, screen_port FROM study_course WHERE UPPER(course_code) = ?")) {
                 q.setString(1, normalizedCode);
                 ResultSet rs = q.executeQuery();
                 if (!rs.next()) {
@@ -80,6 +82,8 @@ public final class CourseRepository {
                 storedPassword = rs.getString(5);
                 currentSlide = rs.getInt(6);
                 isPresenting = rs.getBoolean(7);
+                hostIp = rs.getString(8) != null ? rs.getString(8) : "127.0.0.1";
+                screenPort = rs.getInt(9) > 0 ? rs.getInt(9) : 5200;
             }
 
             if (!storedPassword.equals(password.trim())) {
@@ -95,7 +99,7 @@ public final class CourseRepository {
             }
 
             int memberCount = countMembers(c, courseId);
-            return new Course(courseId, normalizedCode, title, desc, owner, storedPassword, currentSlide, memberCount, isPresenting);
+            return new Course(courseId, normalizedCode, title, desc, owner, storedPassword, currentSlide, memberCount, isPresenting, hostIp, screenPort);
         } catch (SQLException e) {
             throw new IllegalStateException("Không thể tham gia phòng học.", e);
         }
@@ -106,7 +110,7 @@ public final class CourseRepository {
         String sql = """
             SELECT c.course_id, c.course_code, c.title, c.description, c.owner_username, c.course_password, c.current_slide,
                    (SELECT COUNT(*) FROM course_member m2 WHERE m2.course_id = c.course_id) AS member_count,
-                   c.is_presenting
+                   c.is_presenting, c.host_ip, c.screen_port
             FROM study_course c
             JOIN course_member m ON c.course_id = m.course_id
             WHERE m.username = ?
@@ -118,7 +122,9 @@ public final class CourseRepository {
             while (rs.next()) {
                 list.add(new Course(
                     rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
-                    rs.getString(5), rs.getString(6), rs.getInt(7), rs.getInt(8), rs.getBoolean(9)
+                    rs.getString(5), rs.getString(6), rs.getInt(7), rs.getInt(8), rs.getBoolean(9),
+                    rs.getString(10) != null ? rs.getString(10) : "127.0.0.1",
+                    rs.getInt(11) > 0 ? rs.getInt(11) : 5200
                 ));
             }
             return list;
@@ -131,7 +137,7 @@ public final class CourseRepository {
         String sql = """
             SELECT c.course_id, c.course_code, c.title, c.description, c.owner_username, c.course_password, c.current_slide,
                    (SELECT COUNT(*) FROM course_member m WHERE m.course_id = c.course_id) AS member_count,
-                   c.is_presenting
+                   c.is_presenting, c.host_ip, c.screen_port
             FROM study_course c
             WHERE c.course_id = ?
         """;
@@ -141,7 +147,9 @@ public final class CourseRepository {
             if (rs.next()) {
                 return new Course(
                     rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
-                    rs.getString(5), rs.getString(6), rs.getInt(7), rs.getInt(8), rs.getBoolean(9)
+                    rs.getString(5), rs.getString(6), rs.getInt(7), rs.getInt(8), rs.getBoolean(9),
+                    rs.getString(10) != null ? rs.getString(10) : "127.0.0.1",
+                    rs.getInt(11) > 0 ? rs.getInt(11) : 5200
                 );
             }
             return null;
@@ -155,6 +163,24 @@ public final class CourseRepository {
              PreparedStatement q = c.prepareStatement("UPDATE study_course SET is_presenting = ? WHERE course_id = ?")) {
             q.setBoolean(1, isPresenting);
             q.setString(2, courseId);
+            q.executeUpdate();
+        } catch (SQLException ignored) { }
+    }
+
+    public void startScreenShare(String courseId, String hostIp, int port) {
+        try (Connection c = database.connect();
+             PreparedStatement q = c.prepareStatement("UPDATE study_course SET is_presenting = TRUE, host_ip = ?, screen_port = ? WHERE course_id = ?")) {
+            q.setString(1, hostIp);
+            q.setInt(2, port);
+            q.setString(3, courseId);
+            q.executeUpdate();
+        } catch (SQLException ignored) { }
+    }
+
+    public void stopScreenShare(String courseId) {
+        try (Connection c = database.connect();
+             PreparedStatement q = c.prepareStatement("UPDATE study_course SET is_presenting = FALSE WHERE course_id = ?")) {
+            q.setString(1, courseId);
             q.executeUpdate();
         } catch (SQLException ignored) { }
     }
@@ -313,7 +339,7 @@ public final class CourseRepository {
         }
     }
 
-    public record Course(String id, String code, String title, String description, String ownerUsername, String password, int currentSlide, int memberCount, boolean isPresenting) { }
+    public record Course(String id, String code, String title, String description, String ownerUsername, String password, int currentSlide, int memberCount, boolean isPresenting, String hostIp, int screenPort) { }
     public record Material(String id, String courseId, String title, String fileType, String fileSize, String uploadedBy) { }
     public record Schedule(String id, String courseId, String sessionTitle, String sessionTime, String description) { }
 }
