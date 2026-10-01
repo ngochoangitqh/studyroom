@@ -48,6 +48,44 @@ public final class AuthStore {
         } catch (SQLException e) { throw new IllegalStateException("Không thể tải người dùng.", e); }
     }
 
+    private final java.util.Map<String, javafx.scene.image.Image> userAvatarCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public void saveUserAvatar(String username, byte[] avatarData) {
+        if (username == null || avatarData == null) return;
+        String key = username.trim().toLowerCase();
+        try (Connection c = database.connect();
+             PreparedStatement q = c.prepareStatement("UPDATE app_user SET avatar = ? WHERE username = ?")) {
+            q.setBytes(1, avatarData);
+            q.setString(2, key);
+            q.executeUpdate();
+            userAvatarCache.put(key, new javafx.scene.image.Image(new java.io.ByteArrayInputStream(avatarData)));
+        } catch (SQLException e) {
+            throw new IllegalStateException("Không thể lưu ảnh đại diện.", e);
+        }
+    }
+
+    public javafx.scene.image.Image getUserAvatarImage(String username) {
+        if (username == null || username.isBlank()) return null;
+        String key = username.trim().toLowerCase();
+        if (userAvatarCache.containsKey(key)) {
+            return userAvatarCache.get(key);
+        }
+        try (Connection c = database.connect();
+             PreparedStatement q = c.prepareStatement("SELECT avatar FROM app_user WHERE username = ?")) {
+            q.setString(1, key);
+            ResultSet rs = q.executeQuery();
+            if (rs.next()) {
+                byte[] data = rs.getBytes(1);
+                if (data != null && data.length > 0) {
+                    javafx.scene.image.Image img = new javafx.scene.image.Image(new java.io.ByteArrayInputStream(data));
+                    userAvatarCache.put(key, img);
+                    return img;
+                }
+            }
+        } catch (SQLException ignored) { }
+        return null;
+    }
+
     private static String hash(String password, byte[] salt) {
         try {
             PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, 210_000, 256);
@@ -55,3 +93,4 @@ public final class AuthStore {
         } catch (InvalidKeySpecException | java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
     }
 }
+
