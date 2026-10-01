@@ -89,6 +89,12 @@ public final class StudyroomApp extends Application {
         Runnable refresh = () -> { name.setManaged(registering[0]); name.setVisible(registering[0]); submit.setText(registering[0] ? "Tạo tài khoản" : "Đăng nhập"); switchMode.setText(registering[0] ? "Đã có tài khoản? Đăng nhập" : "Chưa có tài khoản? Đăng ký"); error.setText(""); };
         switchMode.setOnAction(e -> { registering[0] = !registering[0]; refresh.run(); });
         submit.setOnAction(e -> { try { user = registering[0] ? auth.register(name.getText(), username.getText(), password.getText()) : auth.login(username.getText(), password.getText()); openWorkspace(); } catch (Exception ex) { error.setText(ex.getMessage()); ex.printStackTrace(); } });
+        name.setOnAction(e -> submit.fire());
+        username.setOnAction(e -> submit.fire());
+        password.setOnAction(e -> submit.fire());
+        name.textProperty().addListener((obs, oldV, newV) -> error.setText(""));
+        username.textProperty().addListener((obs, oldV, newV) -> error.setText(""));
+        password.textProperty().addListener((obs, oldV, newV) -> error.setText(""));
         card.getChildren().addAll(brand, title, subtitle, name, username, password, error, submit, switchMode); refresh.run(); root.getChildren().add(card); return root;
     }
     private TextField field(String label, String prompt) { TextField f = new TextField(); f.setPromptText(label + " · " + prompt); f.getStyleClass().add("input"); return f; }

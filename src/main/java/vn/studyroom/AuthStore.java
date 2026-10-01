@@ -16,27 +16,33 @@ public final class AuthStore {
     public AuthStore(Database database) { this.database = database; }
 
     public synchronized User register(String name, String username, String password) {
-        String key = username.trim().toLowerCase();
-        if (name.isBlank() || key.isBlank() || password.length() < 6) throw new IllegalArgumentException("Điền đủ thông tin; mật khẩu cần ít nhất 6 ký tự.");
+        String key = username != null ? username.trim().toLowerCase() : "";
+        String displayName = name != null ? name.trim() : "";
+        if (displayName.isBlank() || key.isBlank() || password == null || password.length() < 6) {
+            throw new IllegalArgumentException("Vui lòng điền đủ thông tin; mật khẩu phải có ít nhất 6 ký tự.");
+        }
         byte[] salt = new byte[16]; new SecureRandom().nextBytes(salt);
         try (Connection c = database.connect(); PreparedStatement q = c.prepareStatement("INSERT INTO app_user(username, display_name, password_hash, salt) VALUES (?, ?, ?, ?)") ) {
-            q.setString(1, key); q.setString(2, name.trim()); q.setString(3, hash(password, salt)); q.setString(4, Base64.getEncoder().encodeToString(salt)); q.executeUpdate();
-            return new User(key, name.trim());
+            q.setString(1, key); q.setString(2, displayName); q.setString(3, hash(password, salt)); q.setString(4, Base64.getEncoder().encodeToString(salt)); q.executeUpdate();
+            return new User(key, displayName);
         } catch (SQLException e) {
             if ("23505".equals(e.getSQLState())) throw new IllegalArgumentException("Tên đăng nhập này đã tồn tại.");
-            throw new IllegalStateException("Không thể lưu tài khoản vào database.", e);
+            throw new IllegalStateException("Lỗi kết nối cơ sở dữ liệu. Vui lòng kiểm tra PostgreSQL.", e);
         }
     }
 
     public synchronized User login(String username, String password) {
-        String key = username.trim().toLowerCase();
+        String key = username != null ? username.trim().toLowerCase() : "";
+        if (key.isBlank() || password == null || password.isBlank()) {
+            throw new IllegalArgumentException("Vui lòng nhập tên đăng nhập và mật khẩu.");
+        }
         try (Connection c = database.connect(); PreparedStatement q = c.prepareStatement("SELECT display_name, password_hash, salt FROM app_user WHERE username = ?")) {
             q.setString(1, key); ResultSet result = q.executeQuery();
             if (!result.next() || !hash(password, Base64.getDecoder().decode(result.getString("salt"))).equals(result.getString("password_hash"))) {
-                throw new IllegalArgumentException("Tên đăng nhập hoặc mật khẩu chưa đúng.");
+                throw new IllegalArgumentException("Tên đăng nhập hoặc mật khẩu chưa đúng. (Nếu chưa có tài khoản, hãy nhấn \"Đăng ký\" ở bên dưới).");
             }
             return new User(key, result.getString("display_name"));
-        } catch (SQLException e) { throw new IllegalStateException("Không thể đọc database.", e); }
+        } catch (SQLException e) { throw new IllegalStateException("Lỗi kết nối cơ sở dữ liệu. Vui lòng kiểm tra PostgreSQL.", e); }
     }
 
     public List<User> otherUsers(String username) {
