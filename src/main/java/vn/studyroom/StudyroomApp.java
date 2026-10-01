@@ -228,9 +228,10 @@ public final class StudyroomApp extends Application {
         if (roomId == null) { showEmptyConversation(conversation); showChatColumns(threads, conversation); return; }
         List<String> memberNames = group ? chatRepository.membersOf(roomId) : List.of();
         String metaText = group ? memberNames.size() + " thành viên" : "Đang hoạt động";
+        HBox head = new HBox(12); head.getStyleClass().add("conversation-header");
         String targetUsername = null;
         if (!group && roomId != null && roomId.startsWith("direct:")) {
-            for (User u : friendRepo.friendsOf(user.username())) {
+            for (User u : friendRepo.friends(user.username())) {
                 if (directRoomId(user.username(), u.username()).equals(roomId)) {
                     targetUsername = u.username();
                     break;
