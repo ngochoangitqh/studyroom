@@ -929,7 +929,6 @@ public final class StudyroomApp extends Application {
                     ScreenShareEngine.getInstance().stop();
                     CourseRepository.Course fresh = courseRepo.getCourse(course.id());
                     renderLiveClassroom(fresh, container, onGoToMaterials);
-                    toast("Đã dừng chia sẻ màn hình.");
                 });
 
                 Button minBtn = new Button("🗕  Thu nhỏ để bắt đầu giảng bài");
@@ -938,7 +937,6 @@ public final class StudyroomApp extends Application {
                 minBtn.setOnAction(e -> {
                     Stage stage = (Stage) container.getScene().getWindow();
                     if (stage != null) stage.setIconified(true);
-                    toast("Đã thu nhỏ Studyroom. Màn hình của bạn đang phát trực tiếp cho cả phòng!");
                 });
 
                 Button docBtn = new Button("📚  Slide & Tài liệu");
@@ -949,7 +947,7 @@ public final class StudyroomApp extends Application {
                 Button boardBtn = new Button("✏️  Bảng trắng");
                 boardBtn.getStyleClass().add("button");
                 boardBtn.setStyle("-fx-padding: 6 12; -fx-font-size: 12px;");
-                boardBtn.setOnAction(e -> toast("Mở bảng trắng tương tác trực tiếp."));
+                boardBtn.setOnAction(e -> {});
 
                 streamActions.getChildren().addAll(stopBtn, minBtn, docBtn, boardBtn);
             } else {
@@ -960,12 +958,12 @@ public final class StudyroomApp extends Application {
                 Button handBtn = new Button("🙋  Giơ tay phát biểu");
                 handBtn.getStyleClass().addAll("button");
                 handBtn.setStyle("-fx-padding: 6 12; -fx-font-size: 12px;");
-                handBtn.setOnAction(e -> toast("Đã giơ tay xin phát biểu với chủ phòng!"));
+                handBtn.setOnAction(e -> {});
 
                 Button noteBtn = new Button("📄  Ghi chú cá nhân");
                 noteBtn.getStyleClass().add("button");
                 noteBtn.setStyle("-fx-padding: 6 12; -fx-font-size: 12px;");
-                noteBtn.setOnAction(e -> toast("Mở sổ ghi chú cá nhân."));
+                noteBtn.setOnAction(e -> {});
 
                 streamActions.getChildren().addAll(studentStatus, handBtn, noteBtn);
             }
@@ -990,12 +988,12 @@ public final class StudyroomApp extends Application {
         dock.setMaxHeight(52);
 
         Button micBtn = new Button(isMicOn ? "🎙️ Bật mic" : "🔇 Tắt mic");
-        micBtn.getStyleClass().add("dock-btn");
+        micBtn.getStyleClass().add(isMicOn ? "dock-btn-danger" : "dock-btn");
         micBtn.setOnAction(e -> {
             isMicOn = !isMicOn;
             micBtn.setText(isMicOn ? "🎙️ Bật mic" : "🔇 Tắt mic");
+            micBtn.getStyleClass().setAll(isMicOn ? "dock-btn-danger" : "dock-btn");
             courseRepo.heartbeatPresence(course.id(), user.username(), user.displayName(), isCameraOn, isMicOn);
-            toast(isMicOn ? "Đã bật micro." : "Đã tắt micro.");
         });
 
         Button camBtn = new Button(isCameraOn ? "📷 Tắt camera" : "📹 Bật camera");
@@ -1004,11 +1002,9 @@ public final class StudyroomApp extends Application {
             isCameraOn = !isCameraOn;
             if (isCameraOn) {
                 CameraEngine.getInstance().start(myCamView::setImage);
-                toast("Đã bật camera của bạn!");
             } else {
                 CameraEngine.getInstance().stop();
                 myCamView.setImage(null);
-                toast("Đã tắt camera của bạn.");
             }
             courseRepo.heartbeatPresence(course.id(), user.username(), user.displayName(), isCameraOn, isMicOn);
             CourseRepository.Course fresh = courseRepo.getCourse(course.id());
@@ -1024,17 +1020,13 @@ public final class StudyroomApp extends Application {
                     ScreenShareEngine.getInstance().stop();
                     CourseRepository.Course fresh = courseRepo.getCourse(course.id());
                     renderLiveClassroom(fresh, container, onGoToMaterials);
-                    toast("Đã dừng chia sẻ màn hình.");
                 } else {
                     String myIp = VoiceEngine.getLocalIp();
                     int port = 5200;
                     courseRepo.startScreenShare(course.id(), myIp, port);
                     CourseRepository.Course fresh = courseRepo.getCourse(course.id());
                     renderLiveClassroom(fresh, container, onGoToMaterials);
-                    toast("Đang phát trực tiếp màn hình máy tính của bạn cho cả phòng!");
                 }
-            } else {
-                toast("Chỉ chủ phòng mới có quyền chia sẻ màn hình trong phòng học.");
             }
         });
 
@@ -1057,11 +1049,10 @@ public final class StudyroomApp extends Application {
 
         Button membersBtn = new Button("👥 Thành viên (" + onlineMembers.size() + ")");
         membersBtn.getStyleClass().add("dock-btn");
-        membersBtn.setOnAction(e -> toast("Có " + onlineMembers.size() + " người đang trực tuyến trong phòng."));
 
         Button chatBtn = new Button("💬 Trò chuyện");
         chatBtn.getStyleClass().add("dock-btn");
-        chatBtn.setOnAction(e -> toast("Mở khung trò chuyện nhanh trong lớp."));
+        chatBtn.setOnAction(e -> showChat());
 
         dock.getChildren().addAll(micBtn, camBtn, shareScreenBtn, leaveBtn, membersBtn, chatBtn);
 
@@ -1578,7 +1569,10 @@ public final class StudyroomApp extends Application {
         try { node.connect(hostPort[0], hostPort.length == 2 ? Integer.parseInt(hostPort[1]) : 5050); toast("Đã nối peer " + peer); }
         catch (IOException | NumberFormatException e) { toast("Chưa thể nối peer " + peer); }
     }
-    private void toast(String message) { Label note = new Label(message); note.getStyleClass().add("toast"); content.getChildren().add(note); }
+
+    private void toast(String message) {
+        // Disabled: do not spawn toast popup labels that cover buttons or stack up on UI
+    }
     @Override public void stop() {
         ScreenShareEngine.getInstance().stop();
         if (node != null) node.close();
