@@ -3191,14 +3191,41 @@ public final class StudyroomApp extends Application {
         content.getChildren().add(card);
     }
 
+    private void showErrorAlert(String titleText, String contentText) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle(titleText);
+        alert.setHeaderText(null);
+        alert.setContentText(contentText);
+        Window win = scene != null ? scene.getWindow() : null;
+        if (win != null) alert.initOwner(win);
+        alert.showAndWait();
+    }
+
+    private BufferedImage fxImageToBufferedImage(Image fxImg) {
+        if (fxImg == null || fxImg.isError()) return null;
+        int width = (int) fxImg.getWidth();
+        int height = (int) fxImg.getHeight();
+        if (width <= 0 || height <= 0) return null;
+
+        BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        javafx.scene.image.PixelReader pr = fxImg.getPixelReader();
+        if (pr == null) return null;
+
+        int[] buffer = new int[width * height];
+        pr.getPixels(0, 0, width, height, javafx.scene.image.PixelFormat.getIntArgbInstance(), buffer, 0, width);
+        bi.setRGB(0, 0, width, height, buffer, 0, width);
+        return bi;
+    }
+
     private void showChangeUserAvatarDialog() {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Chọn ảnh đại diện cá nhân mới");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Hình ảnh (*.png, *.jpg, *.jpeg, *.webp)", "*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp"));
-        File file = chooser.showOpenDialog(scene != null && scene.getWindow() != null ? scene.getWindow() : null);
+        Window win = scene != null ? scene.getWindow() : null;
+        File file = chooser.showOpenDialog(win);
         if (file != null) {
-            if (file.length() > 15 * 1024 * 1024) {
-                toast("File ảnh quá lớn (> 15MB).");
+            if (file.length() > 20 * 1024 * 1024) {
+                showErrorAlert("Tệp quá lớn", "Dung lượng ảnh lớn hơn 20MB. Vui lòng chọn tệp nhỏ hơn.");
                 return;
             }
             showAvatarCropDialog(file, "Căn chỉnh ảnh đại diện cá nhân", croppedData -> {
@@ -3206,9 +3233,8 @@ public final class StudyroomApp extends Application {
                     auth.saveUserAvatar(user.username(), croppedData);
                     showProfile();
                     showChat();
-                    toast("Đã cập nhật ảnh đại diện cá nhân thành công!");
                 } catch (Exception ex) {
-                    toast("Lỗi cập nhật ảnh đại diện: " + ex.getMessage());
+                    showErrorAlert("Lỗi cập nhật ảnh", "Không thể lưu ảnh đại diện: " + ex.getMessage());
                 }
             });
         }
@@ -3218,32 +3244,46 @@ public final class StudyroomApp extends Application {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Chọn ảnh đại diện nhóm · " + roomName);
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Hình ảnh (*.png, *.jpg, *.jpeg, *.webp)", "*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp"));
-        File file = chooser.showOpenDialog(scene != null && scene.getWindow() != null ? scene.getWindow() : null);
+        Window win = scene != null ? scene.getWindow() : null;
+        File file = chooser.showOpenDialog(win);
         if (file != null) {
-            if (file.length() > 15 * 1024 * 1024) {
-                toast("File ảnh quá lớn (> 15MB).");
+            if (file.length() > 20 * 1024 * 1024) {
+                showErrorAlert("Tệp quá lớn", "Dung lượng ảnh lớn hơn 20MB. Vui lòng chọn tệp nhỏ hơn.");
                 return;
             }
             showAvatarCropDialog(file, "Căn chỉnh ảnh đại diện nhóm · " + roomName, croppedData -> {
                 try {
                     chatRepository.saveGroupAvatar(roomId, croppedData);
                     showChat(roomId, roomName, true);
-                    toast("Đã cập nhật ảnh đại diện nhóm thành công!");
                 } catch (Exception ex) {
-                    toast("Lỗi cập nhật ảnh nhóm: " + ex.getMessage());
+                    showErrorAlert("Lỗi cập nhật ảnh", "Không thể lưu ảnh nhóm: " + ex.getMessage());
                 }
             });
         }
     }
 
     private void showAvatarCropDialog(File file, String titleText, java.util.function.Consumer<byte[]> onSave) {
-        BufferedImage srcImage;
+        BufferedImage srcImage = null;
         try {
             srcImage = ImageIO.read(file);
-            if (srcImage == null) throw new IOException("Không đọc được định dạng ảnh.");
-        } catch (Exception ex) {
-            toast("Lỗi mở ảnh: " + ex.getMessage());
+        } catch (Exception ignored) { }
+
+        Image fxImage = null;
+        try {
+            fxImage = new Image(file.toURI().toString());
+        } catch (Exception ignored) { }
+
+        if (srcImage == null && fxImage != null && !fxImage.isError() && fxImage.getWidth() > 0) {
+            srcImage = fxImageToBufferedImage(fxImage);
+        }
+
+        if (srcImage == null) {
+            showErrorAlert("Lỗi mở ảnh", "Không thể đọc định dạng ảnh được chọn. Vui lòng chọn tệp ảnh PNG, JPG hoặc WEBP khác.");
             return;
+        }
+
+        if (fxImage == null || fxImage.isError() || fxImage.getWidth() <= 0) {
+            fxImage = new Image(file.toURI().toString());
         }
 
         Dialog<ButtonType> dialog = new Dialog<>();
@@ -3266,16 +3306,15 @@ public final class StudyroomApp extends Application {
         hint.setWrapText(true);
 
         double previewSize = 150;
-        Image fxImage = new Image(file.toURI().toString());
         ImageView previewIv = new ImageView(fxImage);
         previewIv.setSmooth(true);
         previewIv.setPreserveRatio(true);
 
         double w = fxImage.getWidth();
         double h = fxImage.getHeight();
-        double baseScale = Math.max(previewSize / w, previewSize / h);
+        double baseScale = Math.max(previewSize / Math.max(1.0, w), previewSize / Math.max(1.0, h));
         previewIv.setFitWidth(w * baseScale);
-        previewIv.setFitHeight(h * scaleBase(w, h, previewSize));
+        previewIv.setFitHeight(h * baseScale);
 
         javafx.scene.shape.Circle clipCircle = new javafx.scene.shape.Circle(previewSize / 2, previewSize / 2, previewSize / 2);
         StackPane previewContainer = new StackPane(previewIv);
@@ -3343,14 +3382,22 @@ public final class StudyroomApp extends Application {
         saveBtn.setStyle("-fx-background-color: #6366f1; -fx-text-fill: white; -fx-font-weight: 700; -fx-background-radius: 10; -fx-padding: 8 20;");
 
         final BufferedImage finalSrc = srcImage;
+        final File finalFile = file;
         dialog.setResultConverter(btn -> {
             if (btn == saveType) {
                 double zoom = zoomSlider.getValue();
                 double offX = posXSlider.getValue();
                 double offY = posYSlider.getValue();
                 byte[] cropped = cropAndResampleImage(finalSrc, zoom, offX, offY, 400);
+                if (cropped == null) {
+                    try {
+                        cropped = Files.readAllBytes(finalFile.toPath());
+                    } catch (Exception ignored) { }
+                }
                 if (cropped != null) {
                     onSave.accept(cropped);
+                } else {
+                    showErrorAlert("Lỗi lưu ảnh", "Không thể xử lý dữ liệu ảnh.");
                 }
             }
             return btn;
@@ -3359,45 +3406,42 @@ public final class StudyroomApp extends Application {
         dialog.showAndWait();
     }
 
-    private double scaleBase(double w, double h, double previewSize) {
-        return h * Math.max(previewSize / w, previewSize / h);
-    }
-
     private byte[] cropAndResampleImage(BufferedImage src, double zoom, double offsetX, double offsetY, int targetSize) {
-        int w = src.getWidth();
-        int h = src.getHeight();
-
-        double minDim = Math.min(w, h);
-        double cropSize = minDim / zoom;
-
-        double maxShiftX = (w - cropSize) / 2.0;
-        double maxShiftY = (h - cropSize) / 2.0;
-
-        double centerX = (w / 2.0) - (offsetX / 100.0) * maxShiftX;
-        double centerY = (h / 2.0) - (offsetY / 100.0) * maxShiftY;
-
-        double cropX = Math.max(0, Math.min(w - cropSize, centerX - (cropSize / 2.0)));
-        double cropY = Math.max(0, Math.min(h - cropSize, centerY - (cropSize / 2.0)));
-
-        BufferedImage dest = new BufferedImage(targetSize, targetSize, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2d = dest.createGraphics();
-        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-        g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-        g2d.drawImage(
-            src,
-            0, 0, targetSize, targetSize,
-            (int)cropX, (int)cropY, (int)(cropX + cropSize), (int)(cropY + cropSize),
-            null
-        );
-        g2d.dispose();
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try {
+            int w = src.getWidth();
+            int h = src.getHeight();
+            if (w <= 0 || h <= 0) return null;
+
+            double minDim = Math.min(w, h);
+            double cropSize = minDim / Math.max(1.0, zoom);
+
+            double maxShiftX = (w - cropSize) / 2.0;
+            double maxShiftY = (h - cropSize) / 2.0;
+
+            double centerX = (w / 2.0) - (offsetX / 100.0) * maxShiftX;
+            double centerY = (h / 2.0) - (offsetY / 100.0) * maxShiftY;
+
+            double cropX = Math.max(0, Math.min(w - cropSize, centerX - (cropSize / 2.0)));
+            double cropY = Math.max(0, Math.min(h - cropSize, centerY - (cropSize / 2.0)));
+
+            BufferedImage dest = new BufferedImage(targetSize, targetSize, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g2d = dest.createGraphics();
+            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            g2d.drawImage(
+                src,
+                0, 0, targetSize, targetSize,
+                (int)cropX, (int)cropY, (int)(cropX + cropSize), (int)(cropY + cropSize),
+                null
+            );
+            g2d.dispose();
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ImageIO.write(dest, "png", baos);
             return baos.toByteArray();
-        } catch (IOException e) {
+        } catch (Exception ex) {
             return null;
         }
     }

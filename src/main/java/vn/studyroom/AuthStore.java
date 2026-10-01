@@ -58,13 +58,17 @@ public final class AuthStore {
 
     public void saveUserAvatar(String username, byte[] avatarData) {
         if (username == null || avatarData == null) return;
-        String key = username.trim().toLowerCase();
+        String rawKey = username.trim();
+        String lowerKey = rawKey.toLowerCase();
         try (Connection c = database.connect();
-             PreparedStatement q = c.prepareStatement("UPDATE app_user SET avatar = ? WHERE username = ?")) {
+             PreparedStatement q = c.prepareStatement("UPDATE app_user SET avatar = ? WHERE username = ? OR LOWER(username) = ?")) {
             q.setBytes(1, avatarData);
-            q.setString(2, key);
+            q.setString(2, rawKey);
+            q.setString(3, lowerKey);
             q.executeUpdate();
-            userAvatarCache.put(key, new javafx.scene.image.Image(new java.io.ByteArrayInputStream(avatarData)));
+            javafx.scene.image.Image img = new javafx.scene.image.Image(new java.io.ByteArrayInputStream(avatarData));
+            userAvatarCache.put(rawKey, img);
+            userAvatarCache.put(lowerKey, img);
         } catch (SQLException e) {
             throw new IllegalStateException("Không thể lưu ảnh đại diện.", e);
         }
@@ -72,19 +76,22 @@ public final class AuthStore {
 
     public javafx.scene.image.Image getUserAvatarImage(String username) {
         if (username == null || username.isBlank()) return null;
-        String key = username.trim().toLowerCase();
-        if (userAvatarCache.containsKey(key)) {
-            return userAvatarCache.get(key);
-        }
+        String rawKey = username.trim();
+        String lowerKey = rawKey.toLowerCase();
+        if (userAvatarCache.containsKey(rawKey)) return userAvatarCache.get(rawKey);
+        if (userAvatarCache.containsKey(lowerKey)) return userAvatarCache.get(lowerKey);
+
         try (Connection c = database.connect();
-             PreparedStatement q = c.prepareStatement("SELECT avatar FROM app_user WHERE username = ?")) {
-            q.setString(1, key);
+             PreparedStatement q = c.prepareStatement("SELECT avatar FROM app_user WHERE username = ? OR LOWER(username) = ?")) {
+            q.setString(1, rawKey);
+            q.setString(2, lowerKey);
             ResultSet rs = q.executeQuery();
             if (rs.next()) {
                 byte[] data = rs.getBytes(1);
                 if (data != null && data.length > 0) {
                     javafx.scene.image.Image img = new javafx.scene.image.Image(new java.io.ByteArrayInputStream(data));
-                    userAvatarCache.put(key, img);
+                    userAvatarCache.put(rawKey, img);
+                    userAvatarCache.put(lowerKey, img);
                     return img;
                 }
             }
