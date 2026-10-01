@@ -26,6 +26,16 @@ import java.util.TimerTask;
 import java.util.UUID;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
+import javafx.animation.Timeline;
+import javafx.animation.Interpolator;
+import javafx.util.Duration;
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
+import javax.sound.sampled.DataLine;
+
 
 public final class StudyroomApp extends Application {
     private final Database database = new Database();
@@ -1068,51 +1078,264 @@ public final class StudyroomApp extends Application {
         showChat(roomId, roomName, "GROUP".equals(callType));
     }
 
+    // ─── Ringtone helper ────────────────────────────────────────────────────────
+    private Clip generateRingtone() {
+        try {
+            float sampleRate = 44100f;
+            int durationMs = 3200; // 3.2 sec of audio data
+            int numSamples = (int) (sampleRate * durationMs / 1000);
+            byte[] buf = new byte[numSamples * 2];
+
+            // Phone-style ring: alternating tones (dual-tone: 480Hz + 620Hz) with on/off envelope
+            // Ring pattern: 0.4s ON, 0.2s OFF, 0.4s ON, 0.2s OFF, 2.0s silence
+            double ringOn1Start = 0, ringOn1End = 0.4;
+            double ringOff1Start = 0.4, ringOff1End = 0.6;
+            double ringOn2Start = 0.6, ringOn2End = 1.0;
+            double silence = 1.0;
+
+            for (int i = 0; i < numSamples; i++) {
+                double t = i / sampleRate;
+                double cycleLen = 2.0; // full pattern = 2s
+                double tInCycle = t % cycleLen;
+
+                boolean on = (tInCycle >= ringOn1Start && tInCycle < ringOn1End)
+                          || (tInCycle >= ringOn2Start && tInCycle < ringOn2End);
+
+                double sample = 0;
+                if (on) {
+                    // Dual-tone: 480 Hz + 620 Hz (US telephone ring)
+                    sample = 0.45 * Math.sin(2 * Math.PI * 480 * t)
+                           + 0.45 * Math.sin(2 * Math.PI * 620 * t);
+                    // Soft attack/release at edges of ring burst
+                    double fadeLen = 0.025;
+                    double inCycle = tInCycle >= ringOn2Start ? tInCycle - ringOn2Start : tInCycle - ringOn1Start;
+                    double burstLen = tInCycle >= ringOn2Start ? (ringOn2End - ringOn2Start) : (ringOn1End - ringOn1Start);
+                    double fadeIn = Math.min(inCycle / fadeLen, 1.0);
+                    double fadeOut = Math.min((burstLen - inCycle) / fadeLen, 1.0);
+                    sample *= Math.min(fadeIn, fadeOut);
+                }
+
+                short val = (short) (sample * 32000);
+                buf[2 * i]     = (byte) (val & 0xFF);
+                buf[2 * i + 1] = (byte) ((val >> 8) & 0xFF);
+            }
+
+            AudioFormat fmt = new AudioFormat(sampleRate, 16, 1, true, false);
+            DataLine.Info info = new DataLine.Info(Clip.class, fmt);
+            Clip clip = (Clip) AudioSystem.getLine(info);
+            clip.open(fmt, buf, 0, buf.length);
+            clip.loop(Clip.LOOP_CONTINUOUSLY);
+            return clip;
+        } catch (Exception e) {
+            return null; // silently ignore if audio not available
+        }
+    }
+
     private void promptIncomingCall(CallRepository.CallSession incoming) {
-        Dialog<Boolean> dialog = new Dialog<>();
-        dialog.setTitle("Cuộc gọi đến");
-        dialog.setHeaderText(null);
-        dialog.setGraphic(null);
-        dialog.getDialogPane().getStylesheets().addAll(
+        // ── 1. Start ringtone ────────────────────────────────────────────────
+        Clip ringtone = generateRingtone();
+        Runnable stopRing = () -> {
+            if (ringtone != null) {
+                try { ringtone.stop(); ringtone.close(); } catch (Exception ignored) {}
+            }
+        };
+
+        // ── 2. Build Incoming Call Stage (floating window) ───────────────────
+        Stage callStage = new Stage();
+        callStage.initModality(javafx.stage.Modality.APPLICATION_MODAL);
+        callStage.initStyle(javafx.stage.StageStyle.UNDECORATED);
+        callStage.setAlwaysOnTop(true);
+        callStage.setTitle("Cuộc gọi đến · " + incoming.roomName());
+
+        // ── 3. Root layout (dark, rounded) ──────────────────────────────────
+        StackPane root = new StackPane();
+        root.setStyle("-fx-background-color: #1a1a2e; -fx-background-radius: 20;");
+        root.setPrefSize(320, 420);
+
+        // ── 4. Ripple rings ──────────────────────────────────────────────────
+        StackPane rippleContainer = new StackPane();
+        rippleContainer.setPrefSize(320, 420);
+
+        for (int r = 0; r < 3; r++) {
+            javafx.scene.shape.Circle ring = new javafx.scene.shape.Circle(55 + r * 26);
+            ring.setFill(javafx.scene.paint.Color.TRANSPARENT);
+            ring.setStroke(javafx.scene.paint.Color.rgb(99, 102, 241, 0.35 - r * 0.1));
+            ring.setStrokeWidth(2);
+
+            Timeline ripple = new Timeline(
+                new KeyFrame(Duration.ZERO,
+                    new KeyValue(ring.scaleXProperty(), 1.0, Interpolator.EASE_BOTH),
+                    new KeyValue(ring.scaleYProperty(), 1.0, Interpolator.EASE_BOTH),
+                    new KeyValue(ring.opacityProperty(), 0.8, Interpolator.EASE_BOTH)
+                ),
+                new KeyFrame(Duration.seconds(1.6),
+                    new KeyValue(ring.scaleXProperty(), 1.5, Interpolator.EASE_BOTH),
+                    new KeyValue(ring.scaleYProperty(), 1.5, Interpolator.EASE_BOTH),
+                    new KeyValue(ring.opacityProperty(), 0.0, Interpolator.EASE_BOTH)
+                )
+            );
+            ripple.setDelay(Duration.seconds(r * 0.45));
+            ripple.setCycleCount(Timeline.INDEFINITE);
+            ripple.play();
+            rippleContainer.getChildren().add(ring);
+        }
+
+        // ── 5. Caller avatar ─────────────────────────────────────────────────
+        String callerInitials = initials(incoming.roomName());
+        Label avatarText = new Label(callerInitials);
+        avatarText.setStyle("-fx-font-size: 26px; -fx-font-weight: 800; -fx-text-fill: white;");
+        StackPane avatar = new StackPane(avatarText);
+        avatar.setPrefSize(90, 90);
+        avatar.setMaxSize(90, 90);
+        avatar.setStyle("-fx-background-color: linear-gradient(to bottom right, #6366f1, #8b5cf6); -fx-background-radius: 45;");
+
+        // Shake animation on avatar (simulates phone vibration)
+        Timeline shake = new Timeline(
+            new KeyFrame(Duration.ZERO,       new KeyValue(avatar.translateXProperty(), 0)),
+            new KeyFrame(Duration.millis(80),  new KeyValue(avatar.translateXProperty(), -6, Interpolator.EASE_BOTH)),
+            new KeyFrame(Duration.millis(160), new KeyValue(avatar.translateXProperty(),  6, Interpolator.EASE_BOTH)),
+            new KeyFrame(Duration.millis(240), new KeyValue(avatar.translateXProperty(), -4, Interpolator.EASE_BOTH)),
+            new KeyFrame(Duration.millis(320), new KeyValue(avatar.translateXProperty(),  4, Interpolator.EASE_BOTH)),
+            new KeyFrame(Duration.millis(400), new KeyValue(avatar.translateXProperty(),  0))
+        );
+        shake.setCycleCount(Timeline.INDEFINITE);
+        shake.setDelay(Duration.seconds(0.5));
+        shake.play();
+
+        // ── 6. Text labels ───────────────────────────────────────────────────
+        Label callerName = new Label(incoming.roomName());
+        callerName.setStyle("-fx-font-size: 22px; -fx-font-weight: 800; -fx-text-fill: white;");
+
+        Label ringingLbl = new Label("Đang gọi cho bạn...");
+        ringingLbl.setStyle("-fx-font-size: 13px; -fx-text-fill: rgba(255,255,255,0.6);");
+
+        // Blinking dots animation on "Đang gọi"
+        final String[] dots = {"", ".", "..", "..."};
+        final int[] dotIdx = {0};
+        Timeline blinkDots = new Timeline(new KeyFrame(Duration.millis(500), e -> {
+            dotIdx[0] = (dotIdx[0] + 1) % dots.length;
+            ringingLbl.setText("Đang gọi cho bạn" + dots[dotIdx[0]]);
+        }));
+        blinkDots.setCycleCount(Timeline.INDEFINITE);
+        blinkDots.play();
+
+        // ── 7. Buttons ───────────────────────────────────────────────────────
+        // Decline button
+        StackPane declineBtn = new StackPane();
+        declineBtn.setPrefSize(64, 64);
+        declineBtn.setMaxSize(64, 64);
+        declineBtn.setStyle("-fx-background-color: #ef4444; -fx-background-radius: 32; -fx-cursor: hand;");
+        Label declineIcon = new Label("📵");
+        declineIcon.setStyle("-fx-font-size: 24px;");
+        declineBtn.getChildren().add(declineIcon);
+
+        VBox declineBox = new VBox(6, declineBtn, new Label("Từ chối") {{
+            setStyle("-fx-font-size: 11px; -fx-text-fill: rgba(255,255,255,0.6);");
+        }});
+        declineBox.setAlignment(Pos.CENTER);
+
+        // Answer button
+        StackPane answerBtn = new StackPane();
+        answerBtn.setPrefSize(64, 64);
+        answerBtn.setMaxSize(64, 64);
+        answerBtn.setStyle("-fx-background-color: #22c55e; -fx-background-radius: 32; -fx-cursor: hand;");
+        Label answerIcon = new Label("📞");
+        answerIcon.setStyle("-fx-font-size: 24px;");
+        answerBtn.getChildren().add(answerIcon);
+
+        // Pulse animation on answer button
+        Timeline answerPulse = new Timeline(
+            new KeyFrame(Duration.ZERO,
+                new KeyValue(answerBtn.scaleXProperty(), 1.0),
+                new KeyValue(answerBtn.scaleYProperty(), 1.0)
+            ),
+            new KeyFrame(Duration.millis(600),
+                new KeyValue(answerBtn.scaleXProperty(), 1.12, Interpolator.EASE_BOTH),
+                new KeyValue(answerBtn.scaleYProperty(), 1.12, Interpolator.EASE_BOTH)
+            ),
+            new KeyFrame(Duration.millis(1200),
+                new KeyValue(answerBtn.scaleXProperty(), 1.0),
+                new KeyValue(answerBtn.scaleYProperty(), 1.0)
+            )
+        );
+        answerPulse.setCycleCount(Timeline.INDEFINITE);
+        answerPulse.play();
+
+        VBox answerBox = new VBox(6, answerBtn, new Label("Trả lời") {{
+            setStyle("-fx-font-size: 11px; -fx-text-fill: rgba(255,255,255,0.6);");
+        }});
+        answerBox.setAlignment(Pos.CENTER);
+
+        HBox btnRow = new HBox(60, declineBox, answerBox);
+        btnRow.setAlignment(Pos.CENTER);
+
+        // ── 8. Main content VBox ─────────────────────────────────────────────
+        VBox content = new VBox(16, avatar, callerName, ringingLbl, btnRow);
+        content.setAlignment(Pos.CENTER);
+        content.setPadding(new Insets(40, 24, 40, 24));
+
+        root.getChildren().addAll(rippleContainer, content);
+
+        // ── 9. Button actions ────────────────────────────────────────────────
+        Runnable closeAll = () -> {
+            stopRing.run();
+            shake.stop();
+            blinkDots.stop();
+            answerPulse.stop();
+            callStage.close();
+        };
+
+        answerBtn.setOnMouseClicked(e -> {
+            closeAll.run();
+            CallWindow callWin = new CallWindow(incoming, user, callRepo);
+            callWin.start();
+        });
+
+        declineBtn.setOnMouseClicked(e -> {
+            closeAll.run();
+            callRepo.endCall(incoming.callId());
+        });
+
+        // Auto-dismiss after 30s if no answer
+        Timeline autoDismiss = new Timeline(new KeyFrame(Duration.seconds(30), e -> {
+            closeAll.run();
+            callRepo.endCall(incoming.callId());
+        }));
+        autoDismiss.setCycleCount(1);
+        autoDismiss.play();
+
+        // ── 10. Show ─────────────────────────────────────────────────────────
+        Scene callScene = new Scene(root, 320, 420);
+        callScene.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        callScene.getStylesheets().addAll(
             getClass().getResource("/tokens.css").toExternalForm(),
             getClass().getResource("/studyroom.css").toExternalForm()
         );
-        dialog.getDialogPane().getStyleClass().add("custom-dialog");
+        callStage.setScene(callScene);
 
-        VBox box = new VBox(12);
-        box.setAlignment(Pos.CENTER);
-        box.setPadding(new Insets(16, 24, 16, 24));
-        box.setMinWidth(340);
+        // Fade-in entrance
+        root.setOpacity(0);
+        root.setScaleX(0.85);
+        root.setScaleY(0.85);
+        callStage.show();
+        callStage.centerOnScreen();
 
-        Label icon = new Label("☎");
-        icon.setStyle("-fx-font-size: 36px; -fx-text-fill: #7c5cff;");
-        Label title = new Label("Cuộc gọi thoại đến");
-        title.getStyleClass().add("dialog-title");
-        Label caller = new Label(incoming.roomName() + " đang gọi cho bạn...");
-        caller.getStyleClass().add("dialog-desc");
-
-        box.getChildren().addAll(icon, title, caller);
-        dialog.getDialogPane().setContent(box);
-
-        ButtonType answerType = new ButtonType("Trả lời", ButtonBar.ButtonData.OK_DONE);
-        ButtonType rejectType = new ButtonType("Từ chối", ButtonBar.ButtonData.CANCEL_CLOSE);
-        dialog.getDialogPane().getButtonTypes().addAll(rejectType, answerType);
-
-        Button answerBtn = (Button) dialog.getDialogPane().lookupButton(answerType);
-        answerBtn.getStyleClass().addAll("button", "button-primary");
-        Button rejectBtn = (Button) dialog.getDialogPane().lookupButton(rejectType);
-        rejectBtn.getStyleClass().add("button");
-
-        dialog.setResultConverter(btn -> btn == answerType);
-        dialog.showAndWait().ifPresent(accepted -> {
-            if (accepted) {
-                CallWindow callWin = new CallWindow(incoming, user, callRepo);
-                callWin.start();
-            } else {
-                callRepo.endCall(incoming.callId());
-            }
-        });
+        Timeline fadeIn = new Timeline(
+            new KeyFrame(Duration.ZERO,
+                new KeyValue(root.opacityProperty(), 0),
+                new KeyValue(root.scaleXProperty(), 0.85),
+                new KeyValue(root.scaleYProperty(), 0.85)
+            ),
+            new KeyFrame(Duration.millis(280),
+                new KeyValue(root.opacityProperty(), 1.0, Interpolator.EASE_OUT),
+                new KeyValue(root.scaleXProperty(), 1.0, Interpolator.EASE_OUT),
+                new KeyValue(root.scaleYProperty(), 1.0, Interpolator.EASE_OUT)
+            )
+        );
+        fadeIn.play();
     }
+
+
 
     private void showEmptyConversation(VBox conversation) { Label title = new Label("Chọn một nhóm để bắt đầu"); title.getStyleClass().add("empty-title"); Label hint = new Label("Các nhóm bạn tạo sẽ xuất hiện ở cột bên trái."); hint.getStyleClass().add("empty-conversation"); VBox empty = new VBox(8, title, hint); empty.getStyleClass().add("conversation-empty"); conversation.getChildren().add(empty); VBox.setVgrow(empty, Priority.ALWAYS); }
     private String initials(String name) { String[] parts = name.trim().split("\\s+"); return parts.length == 1 ? parts[0].substring(0, Math.min(2, parts[0].length())).toUpperCase() : ("" + parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase(); }
