@@ -331,8 +331,13 @@ public final class CallWindow {
     }
 
     private static String initials(String name) {
-        String[] parts = name.trim().split("\\s+");
-        return parts.length == 1 ? parts[0].substring(0, Math.min(2, parts[0].length())).toUpperCase()
-                                 : ("" + parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+        if (name == null || name.isBlank()) return "?";
+        String trimmed = name.trim();
+        String[] parts = trimmed.split("\\s+");
+        if (parts.length == 0 || parts[0].isEmpty()) return "?";
+        if (parts.length == 1) {
+            return parts[0].substring(0, Math.min(2, parts[0].length())).toUpperCase();
+        }
+        return ("" + parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
     }
 }
