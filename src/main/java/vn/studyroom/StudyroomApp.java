@@ -348,16 +348,48 @@ public final class StudyroomApp extends Application {
             if (att != null && att.data() != null) {
                 try {
                     Image img = new Image(new ByteArrayInputStream(att.data()));
+
+                    // === Messenger-style image bubble ===
                     ImageView iv = new ImageView(img);
-                    iv.setFitWidth(260);
-                    iv.setFitHeight(180);
+                    double imgW = img.getWidth();
+                    double imgH = img.getHeight();
+                    double maxW = 240.0, maxH = 200.0;
+                    double scale = Math.min(maxW / Math.max(imgW, 1), maxH / Math.max(imgH, 1));
+                    double dispW = Math.max(imgW * scale, 80);
+                    double dispH = Math.max(imgH * scale, 60);
+                    iv.setFitWidth(dispW);
+                    iv.setFitHeight(dispH);
                     iv.setPreserveRatio(true);
                     iv.setSmooth(true);
 
-                    StackPane imgBox = new StackPane(iv);
-                    imgBox.setStyle("-fx-background-color: rgba(0,0,0,0.12); -fx-background-radius: 10; -fx-padding: 4; -fx-cursor: hand;");
-                    Tooltip.install(imgBox, new Tooltip("Nhấp để xem đầy đủ / tải về"));
+                    // Dim overlay khi hover (label zoom icon)
+                    Label zoomLbl = new Label("🔍");
+                    zoomLbl.setStyle("-fx-font-size: 22px; -fx-text-fill: white;");
+                    zoomLbl.setVisible(false);
+
+                    StackPane dimOverlay = new StackPane(zoomLbl);
+                    dimOverlay.setPrefSize(dispW, dispH);
+                    dimOverlay.setMaxSize(dispW, dispH);
+                    dimOverlay.setStyle("-fx-background-color: rgba(0,0,0,0.32); -fx-background-radius: 14;");
+                    dimOverlay.setOpacity(0);
+
+                    StackPane imgBox = new StackPane(iv, dimOverlay);
+                    imgBox.setStyle("-fx-background-radius: 14; -fx-cursor: hand; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.18), 6, 0, 0, 2);");
+                    imgBox.setMaxSize(dispW, dispH);
+
+                    // Hover effects
+                    imgBox.setOnMouseEntered(e -> {
+                        dimOverlay.setOpacity(1);
+                        zoomLbl.setVisible(true);
+                    });
+                    imgBox.setOnMouseExited(e -> {
+                        dimOverlay.setOpacity(0);
+                        zoomLbl.setVisible(false);
+                    });
                     imgBox.setOnMouseClicked(e -> showImagePreviewDialog(fileName, img, att.data()));
+
+                    // Bubble transparent — ảnh IS the bubble
+                    bubble.setStyle("-fx-background-color: transparent; -fx-padding: 0;");
                     bubble.getChildren().addAll(imgBox, time);
                 } catch (Exception ex) {
                     Label err = new Label("🖼️ [Lỗi hiển thị ảnh: " + fileName + "]");
@@ -715,40 +747,51 @@ public final class StudyroomApp extends Application {
     }
 
     private void showImagePreviewDialog(String fileName, Image img, byte[] rawBytes) {
-        Dialog<Void> dialog = new Dialog<>();
-        dialog.setTitle("Xem hình ảnh · " + fileName);
-        dialog.setHeaderText(null);
-        dialog.setGraphic(null);
-        dialog.getDialogPane().getStylesheets().addAll(
-            getClass().getResource("/tokens.css").toExternalForm(),
-            getClass().getResource("/studyroom.css").toExternalForm()
-        );
-        dialog.getDialogPane().getStyleClass().add("custom-dialog");
-
-        VBox box = new VBox(12);
-        box.setAlignment(Pos.CENTER);
-        box.setPadding(new Insets(16));
+        // === Messenger-style Lightbox ===
+        Stage lightbox = new Stage();
+        lightbox.initModality(javafx.stage.Modality.APPLICATION_MODAL);
+        lightbox.initStyle(javafx.stage.StageStyle.UNDECORATED);
+        lightbox.setTitle("Xem ảnh · " + fileName);
 
         ImageView iv = new ImageView(img);
-        iv.setFitWidth(600);
-        iv.setFitHeight(450);
         iv.setPreserveRatio(true);
         iv.setSmooth(true);
 
-        HBox actionRow = new HBox(12);
-        actionRow.setAlignment(Pos.CENTER_RIGHT);
+        double screenW = javafx.stage.Screen.getPrimary().getVisualBounds().getWidth();
+        double screenH = javafx.stage.Screen.getPrimary().getVisualBounds().getHeight();
+        double maxW = screenW * 0.85;
+        double maxH = screenH * 0.78;
+        iv.setFitWidth(maxW);
+        iv.setFitHeight(maxH);
 
+        // File name label top
         Label nameLbl = new Label(fileName);
-        nameLbl.setStyle("-fx-font-weight: bold; -fx-font-size: 13px;");
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
+        nameLbl.setStyle("-fx-font-size: 13px; -fx-text-fill: rgba(255,255,255,0.75); -fx-font-weight: 500;");
 
-        Button saveBtn = new Button("💾 Lưu về máy");
-        saveBtn.getStyleClass().addAll("button", "button-primary");
+        // Top bar
+        Button closeTopBtn = new Button("✕");
+        closeTopBtn.setStyle("-fx-background-color: rgba(255,255,255,0.1); -fx-text-fill: white; -fx-font-size: 14px; -fx-background-radius: 20; -fx-min-width: 32; -fx-min-height: 32; -fx-cursor: hand; -fx-padding: 0;");
+        closeTopBtn.setOnAction(e -> lightbox.close());
+
+        Region topSpacer = new Region();
+        HBox.setHgrow(topSpacer, Priority.ALWAYS);
+        HBox topBar = new HBox(12, nameLbl, topSpacer, closeTopBtn);
+        topBar.setAlignment(Pos.CENTER_LEFT);
+        topBar.setPadding(new Insets(12, 16, 12, 16));
+        topBar.setStyle("-fx-background-color: rgba(0,0,0,0.45);");
+
+        // Image container
+        StackPane imageContainer = new StackPane(iv);
+        imageContainer.setStyle("-fx-background-color: transparent;");
+        VBox.setVgrow(imageContainer, Priority.ALWAYS);
+
+        // Bottom action bar
+        Button saveBtn = new Button("💾  Lưu về máy");
+        saveBtn.setStyle("-fx-background-color: #4f46e5; -fx-text-fill: white; -fx-font-weight: 700; -fx-font-size: 13px; -fx-background-radius: 20; -fx-padding: 8 20; -fx-cursor: hand;");
         saveBtn.setOnAction(e -> {
             FileChooser saveChooser = new FileChooser();
             saveChooser.setInitialFileName(fileName);
-            File target = saveChooser.showSaveDialog(dialog.getDialogPane().getScene().getWindow());
+            File target = saveChooser.showSaveDialog(lightbox);
             if (target != null) {
                 try {
                     Files.write(target.toPath(), rawBytes);
@@ -759,17 +802,37 @@ public final class StudyroomApp extends Application {
             }
         });
 
-        Button closeBtn = new Button("Đóng");
-        closeBtn.getStyleClass().add("button");
-        closeBtn.setOnAction(e -> dialog.close());
+        Button closeBotBtn = new Button("Đóng");
+        closeBotBtn.setStyle("-fx-background-color: rgba(255,255,255,0.12); -fx-text-fill: white; -fx-font-size: 13px; -fx-background-radius: 20; -fx-padding: 8 20; -fx-cursor: hand;");
+        closeBotBtn.setOnAction(e -> lightbox.close());
 
-        actionRow.getChildren().addAll(nameLbl, spacer, saveBtn, closeBtn);
-        box.getChildren().addAll(iv, actionRow);
+        HBox bottomBar = new HBox(10, saveBtn, closeBotBtn);
+        bottomBar.setAlignment(Pos.CENTER);
+        bottomBar.setPadding(new Insets(14, 16, 14, 16));
+        bottomBar.setStyle("-fx-background-color: rgba(0,0,0,0.55);");
 
-        dialog.getDialogPane().setContent(box);
-        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
-        dialog.getDialogPane().lookupButton(ButtonType.CLOSE).setVisible(false);
-        dialog.show();
+        VBox root = new VBox(topBar, imageContainer, bottomBar);
+        root.setStyle("-fx-background-color: rgba(10,10,10,0.92);");
+
+        // Click nền tối để đóng
+        imageContainer.setOnMouseClicked(e -> {
+            if (e.getTarget() == imageContainer) lightbox.close();
+        });
+
+        Scene lbScene = new Scene(root, Math.min(img.getWidth() + 80, maxW + 80), Math.min(img.getHeight() + 120, maxH + 120));
+        lbScene.setFill(javafx.scene.paint.Color.rgb(10, 10, 10, 0.92));
+        lbScene.getStylesheets().addAll(
+            getClass().getResource("/tokens.css").toExternalForm(),
+            getClass().getResource("/studyroom.css").toExternalForm()
+        );
+        // ESC để đóng
+        lbScene.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.ESCAPE) lightbox.close();
+        });
+
+        lightbox.setScene(lbScene);
+        lightbox.centerOnScreen();
+        lightbox.show();
     }
 
     private String formatFileSize(long bytes) {
