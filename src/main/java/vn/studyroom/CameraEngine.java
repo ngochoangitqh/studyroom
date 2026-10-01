@@ -1,17 +1,19 @@
 package vn.studyroom;
 
-import com.github.sarxos.webcam.Webcam;
-import com.github.sarxos.webcam.WebcamResolution;
-import javafx.application.Platform;
-import javafx.scene.image.Image;
-
-import javax.imageio.ImageIO;
 import java.awt.Dimension;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+
+import javax.imageio.ImageIO;
+
+import com.github.sarxos.webcam.Webcam;
+import com.github.sarxos.webcam.WebcamResolution;
+
+import javafx.application.Platform;
+import javafx.scene.image.Image;
 
 /**
  * Real-time Webcam capture engine using Webcam Capture library.

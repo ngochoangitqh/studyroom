@@ -174,9 +174,9 @@ public final class StudyroomApp extends Application {
         String metaText = group ? memberNames.size() + " thành viên" : "Đang hoạt động";
         HBox head = new HBox(12); head.getStyleClass().add("conversation-header"); StackPane groupAvatar = avatar(initials(conversationName), group ? "avatar-group" : "avatar-person"); VBox groupCopy = new VBox(2); Label groupName = new Label(conversationName); groupName.getStyleClass().add("group-name"); Label groupMeta = new Label(metaText); groupMeta.getStyleClass().add("group-meta"); groupCopy.getChildren().addAll(groupName, groupMeta); Region push = new Region(); HBox.setHgrow(push, Priority.ALWAYS);
         Button addMember = iconButton("＋", "Thêm thành viên"); if (group) addMember.setOnAction(e -> showAddMemberDialog(roomId, conversationName)); else addMember.setVisible(false);
-        Button call = iconButton("☎", "Gọi thoại"); Button video = iconButton("▣", "Bật video"); Button search = iconButton("⌕", "Tìm trong trò chuyện"); Button more = iconButton("•••", "Thêm tuỳ chọn");
-        call.setOnAction(e -> startOrJoinCall(roomId, conversationName, group ? "GROUP" : "DIRECT"));
-        video.setOnAction(e -> startOrJoinCall(roomId, conversationName, group ? "GROUP" : "DIRECT"));
+        Button call = iconButton("☎", "Gọi thoại"); Button video = iconButton("📹", "Bật video"); Button search = iconButton("⌕", "Tìm trong trò chuyện"); Button more = iconButton("•••", "Thêm tuỳ chọn");
+        call.setOnAction(e -> startOrJoinCall(roomId, conversationName, group ? "GROUP" : "DIRECT", false));
+        video.setOnAction(e -> startOrJoinCall(roomId, conversationName, group ? "GROUP" : "DIRECT", true));
         head.getChildren().addAll(groupAvatar, groupCopy, push, addMember, call, video, search, more);
 
         CallRepository.CallSession activeCall = callRepo.getActiveCall(roomId);
@@ -186,7 +186,7 @@ public final class StudyroomApp extends Application {
             Label bannerLabel = new Label("🟢 Cuộc gọi nhóm đang diễn ra"); bannerLabel.setStyle("-fx-text-fill: #55efc4; -fx-font-weight: bold;");
             Region bSpacer = new Region(); HBox.setHgrow(bSpacer, Priority.ALWAYS);
             Button joinBtn = new Button("Tham gia ngay"); joinBtn.getStyleClass().addAll("button", "button-primary");
-            joinBtn.setOnAction(e -> startOrJoinCall(roomId, conversationName, "GROUP"));
+            joinBtn.setOnAction(e -> startOrJoinCall(roomId, conversationName, "GROUP", false));
             callBanner.getChildren().addAll(bannerLabel, bSpacer, joinBtn);
             conversation.getChildren().add(callBanner);
         }
@@ -1106,7 +1106,7 @@ public final class StudyroomApp extends Application {
         dialog.setOnHidden(e -> showChat());
         dialog.show();
     }
-    private void startOrJoinCall(String roomId, String roomName, String callType) {
+    private void startOrJoinCall(String roomId, String roomName, String callType, boolean startWithVideo) {
         CallRepository.CallSession session = callRepo.getActiveCall(roomId);
         if (session == null) {
             String myIp = VoiceEngine.getLocalIp();
@@ -1114,6 +1114,9 @@ public final class StudyroomApp extends Application {
         }
         final CallRepository.CallSession finalSession = session;
         CallWindow callWin = new CallWindow(session, user, callRepo);
+        if (startWithVideo) {
+            callWin.setAutoStartCamera(true);
+        }
         callWin.setOnCallEnded(duration -> {
             String payload;
             if (duration != null) {
@@ -1127,6 +1130,7 @@ public final class StudyroomApp extends Application {
         callWin.start();
         showChat(roomId, roomName, "GROUP".equals(callType));
     }
+
 
 
     // ─── Ringtone helper ────────────────────────────────────────────────────────
