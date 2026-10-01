@@ -1067,39 +1067,32 @@ public final class StudyroomApp extends Application {
 
         leftPane.getChildren().addAll(deck, dock);
 
-        // User requirement: "phần bên phải khi có người dùng vào phòng mới hiện nha, đồng thời cho phép người dùng bật cam luôn"
-        boolean hasOtherMembers = onlineMembers.stream().anyMatch(m -> !m.username().equalsIgnoreCase(user.username()));
-        boolean showRightPane = hasOtherMembers || isCameraOn;
+        // RIGHT: Video & Member Sidebar (Always visible)
+        VBox rightPane = new VBox(10);
+        rightPane.setPrefWidth(220);
+        rightPane.setMinWidth(200);
+        rightPane.setMaxWidth(230);
+        rightPane.setMinHeight(0);
 
-        if (showRightPane) {
-            VBox rightPane = new VBox(10);
-            rightPane.setPrefWidth(220);
-            rightPane.setMinWidth(200);
-            rightPane.setMaxWidth(230);
-            rightPane.setMinHeight(0);
+        Label sidebarTitle = new Label("Thành viên trong phòng (" + onlineMembers.size() + ")");
+        sidebarTitle.setStyle("-fx-font-weight: 800; -fx-font-size: 13px; -fx-text-fill: -ink;");
+        rightPane.getChildren().add(sidebarTitle);
 
-            Label sidebarTitle = new Label("Thành viên trong phòng (" + onlineMembers.size() + ")");
-            sidebarTitle.setStyle("-fx-font-weight: 800; -fx-font-size: 13px; -fx-text-fill: -ink;");
-            rightPane.getChildren().add(sidebarTitle);
-
-            VBox videoList = new VBox(8);
-            for (CourseRepository.OnlineMember m : onlineMembers) {
-                boolean isMe = m.username().equals(user.username());
-                Pane tile = createMemberVideoTile(m, isMe, myCamView);
-                videoList.getChildren().add(tile);
-            }
-
-            ScrollPane videoScroll = new ScrollPane(videoList);
-            videoScroll.setFitToWidth(true);
-            videoScroll.getStyleClass().add("thread-scroll");
-            VBox.setVgrow(videoScroll, Priority.ALWAYS);
-
-            rightPane.getChildren().add(videoScroll);
-
-            body.getChildren().addAll(leftPane, rightPane);
-        } else {
-            body.getChildren().add(leftPane);
+        VBox videoList = new VBox(8);
+        for (CourseRepository.OnlineMember m : onlineMembers) {
+            boolean isMe = m.username().equals(user.username());
+            Pane tile = createMemberVideoTile(m, isMe, myCamView);
+            videoList.getChildren().add(tile);
         }
+
+        ScrollPane videoScroll = new ScrollPane(videoList);
+        videoScroll.setFitToWidth(true);
+        videoScroll.getStyleClass().add("thread-scroll");
+        VBox.setVgrow(videoScroll, Priority.ALWAYS);
+
+        rightPane.getChildren().add(videoScroll);
+
+        body.getChildren().addAll(leftPane, rightPane);
 
         container.getChildren().add(body);
     }
