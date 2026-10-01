@@ -8,9 +8,14 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import javax.imageio.ImageIO;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.sql.Connection;
@@ -385,29 +390,69 @@ public final class StudyroomApp extends Application {
     }
 
     private StackPane imageAvatar(Image img, String style, double size) {
+        if (img == null || img.isError() || img.getWidth() <= 0 || img.getHeight() <= 0) {
+            return avatar("?", style, size);
+        }
+
         ImageView iv = new ImageView(img);
-        iv.setFitWidth(size);
-        iv.setFitHeight(size);
-        iv.setPreserveRatio(false);
         iv.setSmooth(true);
+        iv.setPreserveRatio(true);
 
-        javafx.scene.shape.Circle clip = new javafx.scene.shape.Circle(size / 2, size / 2, size / 2);
-        iv.setClip(clip);
+        double w = img.getWidth();
+        double h = img.getHeight();
+        double scale = Math.max(size / w, size / h);
+        iv.setFitWidth(w * scale);
+        iv.setFitHeight(h * scale);
 
-        StackPane avatarPane = new StackPane(iv);
+        double radius = size / 2.0;
+        javafx.scene.shape.Circle clipCircle = new javafx.scene.shape.Circle(radius, radius, radius);
+
+        StackPane container = new StackPane(iv);
+        container.setMinSize(size, size);
+        container.setMaxSize(size, size);
+        container.setPrefSize(size, size);
+        container.setAlignment(Pos.CENTER);
+        container.setClip(clipCircle);
+
+        javafx.scene.shape.Circle border = new javafx.scene.shape.Circle(radius);
+        border.setFill(null);
+        border.setStroke(javafx.scene.paint.Color.web("#6366f1", 0.5));
+        border.setStrokeWidth(Math.max(1.5, size * 0.035));
+
+        StackPane avatarPane = new StackPane(container, border);
         avatarPane.getStyleClass().addAll("avatar", style);
         avatarPane.setMinSize(size, size);
         avatarPane.setMaxSize(size, size);
+        avatarPane.setPrefSize(size, size);
+        avatarPane.setAlignment(Pos.CENTER);
         return avatarPane;
     }
 
     private StackPane avatar(String initials, String style, double size) {
         Label mark = new Label(initials);
         mark.getStyleClass().add("avatar-text");
-        StackPane avatarPane = new StackPane(mark);
-        avatarPane.getStyleClass().addAll("avatar", style);
+        mark.setStyle("-fx-font-size: " + (int)(size * 0.38) + "px; -fx-font-weight: 800;");
+
+        StackPane inner = new StackPane(mark);
+        inner.getStyleClass().addAll("avatar", style);
+        inner.setMinSize(size, size);
+        inner.setMaxSize(size, size);
+        inner.setPrefSize(size, size);
+
+        double radius = size / 2.0;
+        javafx.scene.shape.Circle clipCircle = new javafx.scene.shape.Circle(radius, radius, radius);
+        inner.setClip(clipCircle);
+
+        javafx.scene.shape.Circle border = new javafx.scene.shape.Circle(radius);
+        border.setFill(null);
+        border.setStroke(javafx.scene.paint.Color.web("#6366f1", 0.3));
+        border.setStrokeWidth(Math.max(1.5, size * 0.035));
+
+        StackPane avatarPane = new StackPane(inner, border);
         avatarPane.setMinSize(size, size);
         avatarPane.setMaxSize(size, size);
+        avatarPane.setPrefSize(size, size);
+        avatarPane.setAlignment(Pos.CENTER);
         return avatarPane;
     }
 
@@ -3152,18 +3197,20 @@ public final class StudyroomApp extends Application {
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Hình ảnh (*.png, *.jpg, *.jpeg, *.webp)", "*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp"));
         File file = chooser.showOpenDialog(scene != null && scene.getWindow() != null ? scene.getWindow() : null);
         if (file != null) {
-            if (file.length() > 10 * 1024 * 1024) {
-                toast("File ảnh quá lớn (> 10MB).");
+            if (file.length() > 15 * 1024 * 1024) {
+                toast("File ảnh quá lớn (> 15MB).");
                 return;
             }
-            try {
-                byte[] data = Files.readAllBytes(file.toPath());
-                auth.saveUserAvatar(user.username(), data);
-                showProfile();
-                showChat();
-            } catch (Exception ex) {
-                toast("Lỗi cập nhật ảnh đại diện: " + ex.getMessage());
-            }
+            showAvatarCropDialog(file, "Căn chỉnh ảnh đại diện cá nhân", croppedData -> {
+                try {
+                    auth.saveUserAvatar(user.username(), croppedData);
+                    showProfile();
+                    showChat();
+                    toast("Đã cập nhật ảnh đại diện cá nhân thành công!");
+                } catch (Exception ex) {
+                    toast("Lỗi cập nhật ảnh đại diện: " + ex.getMessage());
+                }
+            });
         }
     }
 
@@ -3173,17 +3220,185 @@ public final class StudyroomApp extends Application {
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Hình ảnh (*.png, *.jpg, *.jpeg, *.webp)", "*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp"));
         File file = chooser.showOpenDialog(scene != null && scene.getWindow() != null ? scene.getWindow() : null);
         if (file != null) {
-            if (file.length() > 10 * 1024 * 1024) {
-                toast("File ảnh quá lớn (> 10MB).");
+            if (file.length() > 15 * 1024 * 1024) {
+                toast("File ảnh quá lớn (> 15MB).");
                 return;
             }
-            try {
-                byte[] data = Files.readAllBytes(file.toPath());
-                chatRepository.saveGroupAvatar(roomId, data);
-                showChat(roomId, roomName, true);
-            } catch (Exception ex) {
-                toast("Lỗi cập nhật ảnh nhóm: " + ex.getMessage());
+            showAvatarCropDialog(file, "Căn chỉnh ảnh đại diện nhóm · " + roomName, croppedData -> {
+                try {
+                    chatRepository.saveGroupAvatar(roomId, croppedData);
+                    showChat(roomId, roomName, true);
+                    toast("Đã cập nhật ảnh đại diện nhóm thành công!");
+                } catch (Exception ex) {
+                    toast("Lỗi cập nhật ảnh nhóm: " + ex.getMessage());
+                }
+            });
+        }
+    }
+
+    private void showAvatarCropDialog(File file, String titleText, java.util.function.Consumer<byte[]> onSave) {
+        BufferedImage srcImage;
+        try {
+            srcImage = ImageIO.read(file);
+            if (srcImage == null) throw new IOException("Không đọc được định dạng ảnh.");
+        } catch (Exception ex) {
+            toast("Lỗi mở ảnh: " + ex.getMessage());
+            return;
+        }
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle(titleText);
+        dialog.setHeaderText(null);
+
+        Window win = scene != null ? scene.getWindow() : null;
+        if (win != null) dialog.initOwner(win);
+
+        VBox root = new VBox(14);
+        root.setPadding(new Insets(20, 24, 16, 24));
+        root.setAlignment(Pos.CENTER);
+        root.setPrefWidth(420);
+
+        Label title = new Label(titleText);
+        title.setStyle("-fx-font-size: 17px; -fx-font-weight: 800; -fx-text-fill: #111827;");
+
+        Label hint = new Label("Thu phóng và kéo căn chỉnh vị trí hiển thị ảnh đại diện.");
+        hint.setStyle("-fx-font-size: 12px; -fx-text-fill: #6b7280; -fx-text-alignment: center;");
+        hint.setWrapText(true);
+
+        double previewSize = 150;
+        Image fxImage = new Image(file.toURI().toString());
+        ImageView previewIv = new ImageView(fxImage);
+        previewIv.setSmooth(true);
+        previewIv.setPreserveRatio(true);
+
+        double w = fxImage.getWidth();
+        double h = fxImage.getHeight();
+        double baseScale = Math.max(previewSize / w, previewSize / h);
+        previewIv.setFitWidth(w * baseScale);
+        previewIv.setFitHeight(h * scaleBase(w, h, previewSize));
+
+        javafx.scene.shape.Circle clipCircle = new javafx.scene.shape.Circle(previewSize / 2, previewSize / 2, previewSize / 2);
+        StackPane previewContainer = new StackPane(previewIv);
+        previewContainer.setMinSize(previewSize, previewSize);
+        previewContainer.setMaxSize(previewSize, previewSize);
+        previewContainer.setPrefSize(previewSize, previewSize);
+        previewContainer.setAlignment(Pos.CENTER);
+        previewContainer.setClip(clipCircle);
+
+        javafx.scene.shape.Circle borderRing = new javafx.scene.shape.Circle(previewSize / 2);
+        borderRing.setFill(null);
+        borderRing.setStroke(javafx.scene.paint.Color.web("#6366f1"));
+        borderRing.setStrokeWidth(3.0);
+
+        StackPane avatarPreviewFrame = new StackPane(previewContainer, borderRing);
+        avatarPreviewFrame.setAlignment(Pos.CENTER);
+        avatarPreviewFrame.setStyle("-fx-effect: dropshadow(gaussian, rgba(99, 102, 241, 0.35), 16, 0, 0, 4);");
+
+        Label zoomLabel = new Label("🔍  Thu phóng");
+        zoomLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: 700; -fx-text-fill: #374151;");
+        Slider zoomSlider = new Slider(1.0, 3.0, 1.0);
+
+        Label posXLabel = new Label("↔️  Vị trí ngang (Trái / Phải)");
+        posXLabel.setStyle("-fx-font-size: 11px; -fx-font-weight: 600; -fx-text-fill: #4b5563;");
+        Slider posXSlider = new Slider(-100, 100, 0);
+
+        Label posYLabel = new Label("↕️  Vị trí dọc (Trên / Dưới)");
+        posYLabel.setStyle("-fx-font-size: 11px; -fx-font-weight: 600; -fx-text-fill: #4b5563;");
+        Slider posYSlider = new Slider(-100, 100, 0);
+
+        Runnable updatePreview = () -> {
+            double zoom = zoomSlider.getValue();
+            double scale = baseScale * zoom;
+            previewIv.setFitWidth(w * scale);
+            previewIv.setFitHeight(h * scale);
+            previewIv.setTranslateX(posXSlider.getValue() * (previewSize / 200.0));
+            previewIv.setTranslateY(posYSlider.getValue() * (previewSize / 200.0));
+        };
+
+        zoomSlider.valueProperty().addListener((obs, oldV, newV) -> updatePreview.run());
+        posXSlider.valueProperty().addListener((obs, oldV, newV) -> updatePreview.run());
+        posYSlider.valueProperty().addListener((obs, oldV, newV) -> updatePreview.run());
+
+        Button resetBtn = new Button("↺  Đặt lại ban đầu");
+        resetBtn.setStyle("-fx-background-color: #f3f4f6; -fx-text-fill: #374151; -fx-font-weight: 600; -fx-font-size: 12px; -fx-background-radius: 8; -fx-padding: 5 12; -fx-cursor: hand;");
+        resetBtn.setOnAction(e -> {
+            zoomSlider.setValue(1.0);
+            posXSlider.setValue(0);
+            posYSlider.setValue(0);
+        });
+
+        VBox controlsBox = new VBox(6, zoomLabel, zoomSlider, posXLabel, posXSlider, posYLabel, posYSlider, resetBtn);
+        controlsBox.setAlignment(Pos.CENTER);
+        controlsBox.setStyle("-fx-background-color: #f9fafb; -fx-padding: 12; -fx-background-radius: 12; -fx-border-color: #e5e7eb; -fx-border-radius: 12;");
+
+        root.getChildren().addAll(title, hint, avatarPreviewFrame, controlsBox);
+        dialog.getDialogPane().setContent(root);
+
+        ButtonType saveType = new ButtonType("Lưu ảnh đại diện", ButtonBar.ButtonData.OK_DONE);
+        ButtonType cancelType = new ButtonType("Hủy", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveType, cancelType);
+
+        Button saveBtn = (Button) dialog.getDialogPane().lookupButton(saveType);
+        saveBtn.getStyleClass().addAll("button", "button-primary");
+        saveBtn.setStyle("-fx-background-color: #6366f1; -fx-text-fill: white; -fx-font-weight: 700; -fx-background-radius: 10; -fx-padding: 8 20;");
+
+        final BufferedImage finalSrc = srcImage;
+        dialog.setResultConverter(btn -> {
+            if (btn == saveType) {
+                double zoom = zoomSlider.getValue();
+                double offX = posXSlider.getValue();
+                double offY = posYSlider.getValue();
+                byte[] cropped = cropAndResampleImage(finalSrc, zoom, offX, offY, 400);
+                if (cropped != null) {
+                    onSave.accept(cropped);
+                }
             }
+            return btn;
+        });
+
+        dialog.showAndWait();
+    }
+
+    private double scaleBase(double w, double h, double previewSize) {
+        return h * Math.max(previewSize / w, previewSize / h);
+    }
+
+    private byte[] cropAndResampleImage(BufferedImage src, double zoom, double offsetX, double offsetY, int targetSize) {
+        int w = src.getWidth();
+        int h = src.getHeight();
+
+        double minDim = Math.min(w, h);
+        double cropSize = minDim / zoom;
+
+        double maxShiftX = (w - cropSize) / 2.0;
+        double maxShiftY = (h - cropSize) / 2.0;
+
+        double centerX = (w / 2.0) - (offsetX / 100.0) * maxShiftX;
+        double centerY = (h / 2.0) - (offsetY / 100.0) * maxShiftY;
+
+        double cropX = Math.max(0, Math.min(w - cropSize, centerX - (cropSize / 2.0)));
+        double cropY = Math.max(0, Math.min(h - cropSize, centerY - (cropSize / 2.0)));
+
+        BufferedImage dest = new BufferedImage(targetSize, targetSize, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2d = dest.createGraphics();
+        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        g2d.drawImage(
+            src,
+            0, 0, targetSize, targetSize,
+            (int)cropX, (int)cropY, (int)(cropX + cropSize), (int)(cropY + cropSize),
+            null
+        );
+        g2d.dispose();
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try {
+            ImageIO.write(dest, "png", baos);
+            return baos.toByteArray();
+        } catch (IOException e) {
+            return null;
         }
     }
 
