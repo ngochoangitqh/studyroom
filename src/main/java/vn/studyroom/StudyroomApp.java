@@ -8,6 +8,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -3196,7 +3197,7 @@ public final class StudyroomApp extends Application {
         alert.setTitle(titleText);
         alert.setHeaderText(null);
         alert.setContentText(contentText);
-        Window win = scene != null ? scene.getWindow() : null;
+        javafx.stage.Window win = scene != null ? scene.getWindow() : null;
         if (win != null) alert.initOwner(win);
         alert.showAndWait();
     }
@@ -3221,7 +3222,7 @@ public final class StudyroomApp extends Application {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Chọn ảnh đại diện cá nhân mới");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Hình ảnh (*.png, *.jpg, *.jpeg, *.webp)", "*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp"));
-        Window win = scene != null ? scene.getWindow() : null;
+        javafx.stage.Window win = scene != null ? scene.getWindow() : null;
         File file = chooser.showOpenDialog(win);
         if (file != null) {
             if (file.length() > 20 * 1024 * 1024) {
@@ -3244,7 +3245,7 @@ public final class StudyroomApp extends Application {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Chọn ảnh đại diện nhóm · " + roomName);
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Hình ảnh (*.png, *.jpg, *.jpeg, *.webp)", "*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp"));
-        Window win = scene != null ? scene.getWindow() : null;
+        javafx.stage.Window win = scene != null ? scene.getWindow() : null;
         File file = chooser.showOpenDialog(win);
         if (file != null) {
             if (file.length() > 20 * 1024 * 1024) {
@@ -3290,7 +3291,7 @@ public final class StudyroomApp extends Application {
         dialog.setTitle(titleText);
         dialog.setHeaderText(null);
 
-        Window win = scene != null ? scene.getWindow() : null;
+        javafx.stage.Window win = scene != null ? scene.getWindow() : null;
         if (win != null) dialog.initOwner(win);
 
         VBox root = new VBox(14);
