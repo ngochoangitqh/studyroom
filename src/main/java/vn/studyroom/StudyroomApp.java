@@ -37,6 +37,8 @@ public final class StudyroomApp extends Application {
     private long lastLoadedMessageId = 0;
     private Timer messageSyncTimer;
     private Timer classroomSyncTimer;
+    private boolean isCameraOn = false;
+    private boolean isMicOn = false;
     private Button playButton;
     private Scene scene;
 
@@ -611,7 +613,12 @@ public final class StudyroomApp extends Application {
         Button backBtn = new Button("← Danh sách");
         backBtn.getStyleClass().add("button");
         backBtn.setOnAction(e -> {
+            CameraEngine.getInstance().stop();
+            isCameraOn = false;
             ScreenShareEngine.getInstance().stop();
+            if (activeCourseId != null) {
+                courseRepo.leavePresence(activeCourseId, user.username());
+            }
             if (classroomSyncTimer != null) { classroomSyncTimer.cancel(); classroomSyncTimer = null; }
             activeCourseId = null;
             showCourseList();
@@ -645,6 +652,8 @@ public final class StudyroomApp extends Application {
 
         topBar.getChildren().addAll(backBtn, title, codeTag, passTag, gap, shareBtn, moreBtn);
 
+        courseRepo.heartbeatPresence(courseId, user.username(), user.displayName(), isCameraOn, isMicOn);
+
         // Sub Tabs
         HBox tabs = new HBox(8);
         tabs.setPadding(new Insets(10, 0, 14, 0));
@@ -674,15 +683,21 @@ public final class StudyroomApp extends Application {
                     classroomSyncTimer = new Timer(true);
                     classroomSyncTimer.scheduleAtFixedRate(new TimerTask() {
                         private boolean lastPresenting = course.isPresenting();
-                        private int lastSlide = course.currentSlide();
+                        private int lastMemberCount = -1;
+                        private boolean lastCam = isCameraOn;
+                        private boolean lastMic = isMicOn;
                         @Override
                         public void run() {
                             if (activeCourseId == null || currentTab[0] != 0) return;
                             try {
+                                courseRepo.heartbeatPresence(activeCourseId, user.username(), user.displayName(), isCameraOn, isMicOn);
                                 CourseRepository.Course fresh = courseRepo.getCourse(activeCourseId);
-                                if (fresh != null && (fresh.isPresenting() != lastPresenting || fresh.currentSlide() != lastSlide)) {
+                                List<CourseRepository.OnlineMember> freshMembers = courseRepo.getOnlineMembers(activeCourseId);
+                                if (fresh != null && (fresh.isPresenting() != lastPresenting || freshMembers.size() != lastMemberCount || isCameraOn != lastCam || isMicOn != lastMic)) {
                                     lastPresenting = fresh.isPresenting();
-                                    lastSlide = fresh.currentSlide();
+                                    lastMemberCount = freshMembers.size();
+                                    lastCam = isCameraOn;
+                                    lastMic = isMicOn;
                                     Platform.runLater(() -> {
                                         if (currentTab[0] == 0) {
                                             renderLiveClassroom(fresh, workspaceArea, tabMaterials::fire);
@@ -691,7 +706,7 @@ public final class StudyroomApp extends Application {
                                 }
                             } catch (Exception ignored) { }
                         }
-                    }, 2000, 2000);
+                    }, 1500, 1500);
 
                     renderLiveClassroom(course, workspaceArea, tabMaterials::fire);
                 } else {
@@ -921,27 +936,43 @@ public final class StudyroomApp extends Application {
             deck.getChildren().addAll(streamHeader, screenBox, streamActions);
         }
 
+        // Camera Preview for User
+        ImageView myCamView = new ImageView();
+        myCamView.setPreserveRatio(true);
+        myCamView.setSmooth(true);
+        if (isCameraOn) {
+            CameraEngine.getInstance().start(myCamView::setImage);
+        }
+
         // BOTTOM DOCK BAR
         HBox dock = new HBox(14);
         dock.setAlignment(Pos.CENTER);
         dock.getStyleClass().add("dock-bar");
 
-        Button micBtn = new Button("🎙️ Tắt mic");
+        Button micBtn = new Button(isMicOn ? "🎙️ Bật mic" : "🔇 Tắt mic");
         micBtn.getStyleClass().add("dock-btn");
-        final boolean[] micMuted = {false};
         micBtn.setOnAction(e -> {
-            micMuted[0] = !micMuted[0];
-            micBtn.setText(micMuted[0] ? "🔇 Bật mic" : "🎙️ Tắt mic");
-            toast(micMuted[0] ? "Đã tắt micro." : "Đã bật micro.");
+            isMicOn = !isMicOn;
+            micBtn.setText(isMicOn ? "🎙️ Bật mic" : "🔇 Tắt mic");
+            courseRepo.heartbeatPresence(course.id(), user.username(), user.displayName(), isCameraOn, isMicOn);
+            toast(isMicOn ? "Đã bật micro." : "Đã tắt micro.");
         });
 
-        Button camBtn = new Button("📹 Tắt camera");
-        camBtn.getStyleClass().add("dock-btn");
-        final boolean[] camOff = {false};
+        Button camBtn = new Button(isCameraOn ? "📷 Tắt camera" : "📹 Bật camera");
+        camBtn.getStyleClass().add(isCameraOn ? "dock-btn-danger" : "dock-btn");
         camBtn.setOnAction(e -> {
-            camOff[0] = !camOff[0];
-            camBtn.setText(camOff[0] ? "📷 Bật camera" : "📹 Tắt camera");
-            toast(camOff[0] ? "Đã tắt camera." : "Đã bật camera.");
+            isCameraOn = !isCameraOn;
+            if (isCameraOn) {
+                CameraEngine.getInstance().start(myCamView::setImage);
+                toast("Đã bật camera của bạn!");
+            } else {
+                CameraEngine.getInstance().stop();
+                myCamView.setImage(null);
+                toast("Đã tắt camera của bạn.");
+            }
+            courseRepo.heartbeatPresence(course.id(), user.username(), user.displayName(), isCameraOn, isMicOn);
+            CourseRepository.Course fresh = courseRepo.getCourse(course.id());
+            renderLiveClassroom(fresh, container, onGoToMaterials);
         });
 
         Button shareScreenBtn = new Button(course.isPresenting() && isHost ? "⏹️ Dừng chia sẻ" : "🖥️ Chia sẻ màn hình");
@@ -970,15 +1001,23 @@ public final class StudyroomApp extends Application {
         Button leaveBtn = new Button("🔴 Rời phòng");
         leaveBtn.getStyleClass().addAll("dock-btn-danger");
         leaveBtn.setOnAction(e -> {
+            CameraEngine.getInstance().stop();
+            isCameraOn = false;
             ScreenShareEngine.getInstance().stop();
+            courseRepo.leavePresence(course.id(), user.username());
             if (classroomSyncTimer != null) { classroomSyncTimer.cancel(); classroomSyncTimer = null; }
             activeCourseId = null;
             showCourseList();
         });
 
-        Button membersBtn = new Button("👥 Thành viên");
+        List<CourseRepository.OnlineMember> onlineMembers = courseRepo.getOnlineMembers(course.id());
+        if (onlineMembers.stream().noneMatch(m -> m.username().equals(user.username()))) {
+            onlineMembers.add(0, new CourseRepository.OnlineMember(user.username(), user.displayName(), isCameraOn, isMicOn));
+        }
+
+        Button membersBtn = new Button("👥 Thành viên (" + onlineMembers.size() + ")");
         membersBtn.getStyleClass().add("dock-btn");
-        membersBtn.setOnAction(e -> toast("Danh sách 6 người đang tham dự phòng học."));
+        membersBtn.setOnAction(e -> toast("Có " + onlineMembers.size() + " người đang trực tuyến trong phòng."));
 
         Button chatBtn = new Button("💬 Trò chuyện");
         chatBtn.getStyleClass().add("dock-btn");
@@ -988,24 +1027,21 @@ public final class StudyroomApp extends Application {
 
         leftPane.getChildren().addAll(deck, dock);
 
-        // RIGHT: Video Sidebar
+        // RIGHT: Video Sidebar (Only shows users who are ACTUALLY online in the room)
         VBox rightPane = new VBox(10);
         rightPane.setPrefWidth(220);
         rightPane.setMinWidth(200);
 
-        Label sidebarTitle = new Label("Thành viên (6)");
-        sidebarTitle.setStyle("-fx-font-weight: 800; -fx-font-size: 14px; -fx-text-fill: -ink;");
+        Label sidebarTitle = new Label("Thành viên trong phòng (" + onlineMembers.size() + ")");
+        sidebarTitle.setStyle("-fx-font-weight: 800; -fx-font-size: 13px; -fx-text-fill: -ink;");
         rightPane.getChildren().add(sidebarTitle);
 
         VBox videoList = new VBox(8);
-        videoList.getChildren().addAll(
-            createVideoTile("Lan", true, false, false),
-            createVideoTile("Minh", false, true, false),
-            createVideoTile("Huy", false, false, true),
-            createVideoTile("Chi", false, false, true),
-            createVideoTile("Nam", false, false, false),
-            createVideoTile("Bạn (" + user.displayName() + ")", false, false, false, true)
-        );
+        for (CourseRepository.OnlineMember m : onlineMembers) {
+            boolean isMe = m.username().equals(user.username());
+            Pane tile = createMemberVideoTile(m, isMe, myCamView);
+            videoList.getChildren().add(tile);
+        }
 
         ScrollPane videoScroll = new ScrollPane(videoList);
         videoScroll.setFitToWidth(true);
@@ -1018,40 +1054,76 @@ public final class StudyroomApp extends Application {
         container.getChildren().add(body);
     }
 
-    private Pane createVideoTile(String name, boolean speaking, boolean cameraOn, boolean muted) {
-        return createVideoTile(name, speaking, cameraOn, muted, false);
-    }
-
-    private Pane createVideoTile(String name, boolean speaking, boolean cameraOn, boolean muted, boolean isMe) {
+    private Pane createMemberVideoTile(CourseRepository.OnlineMember m, boolean isMe, ImageView myCamView) {
         VBox tile = new VBox(6);
         tile.getStyleClass().add("video-tile");
-        if (speaking) tile.getStyleClass().add("video-tile-active");
-        if (isMe) tile.setStyle(tile.getStyle() + "; -fx-border-color: #6366f1; -fx-border-width: 1.5; -fx-border-radius: 12;");
+        tile.setPrefHeight(100);
+        tile.setMinHeight(100);
 
+        if (isMe) {
+            tile.setStyle("-fx-background-color: #222336; -fx-background-radius: 12; -fx-padding: 8 10; -fx-border-color: #6366f1; -fx-border-width: 1.5; -fx-border-radius: 12;");
+        } else {
+            tile.setStyle("-fx-background-color: #1c1d2b; -fx-background-radius: 12; -fx-padding: 8 10; -fx-border-color: -line; -fx-border-radius: 12;");
+        }
+
+        if (isMe && isCameraOn) {
+            // Live local camera preview!
+            StackPane camBox = new StackPane();
+            camBox.setStyle("-fx-background-color: #0b0c10; -fx-background-radius: 12; -fx-border-color: #6366f1; -fx-border-width: 1.5; -fx-border-radius: 12;");
+            camBox.setPrefHeight(100);
+            camBox.setMinHeight(100);
+
+            myCamView.setFitWidth(190);
+            myCamView.setFitHeight(90);
+
+            HBox overlay = new HBox();
+            overlay.setAlignment(Pos.BOTTOM_LEFT);
+            overlay.setPadding(new Insets(4));
+            Label meTag = new Label("Bạn (" + m.displayName() + ")");
+            meTag.setStyle("-fx-background-color: rgba(0,0,0,0.65); -fx-text-fill: white; -fx-font-size: 11px; -fx-font-weight: bold; -fx-padding: 2 6; -fx-background-radius: 4;");
+            Region ogap = new Region();
+            HBox.setHgrow(ogap, Priority.ALWAYS);
+            Label camTag = new Label("📹");
+            camTag.setStyle("-fx-background-color: #22c55e; -fx-text-fill: white; -fx-font-size: 10px; -fx-padding: 2 5; -fx-background-radius: 4;");
+            overlay.getChildren().addAll(meTag, ogap, camTag);
+
+            camBox.getChildren().addAll(myCamView, overlay);
+            return camBox;
+        }
+
+        // Camera OFF or Other Member
         HBox top = new HBox();
+        top.setAlignment(Pos.CENTER_LEFT);
+
+        StackPane avatar = new StackPane();
+        Label mark = new Label(initials(m.displayName()));
+        mark.setStyle("-fx-font-weight: 800; -fx-font-size: 12px; -fx-text-fill: white;");
+        avatar.getChildren().add(mark);
+        avatar.setMinSize(28, 28);
+        avatar.setMaxSize(28, 28);
+        avatar.setStyle("-fx-background-color: " + (isMe ? "#6366f1" : "#8b5cf6") + "; -fx-background-radius: 14; -fx-alignment: center;");
+
         Region tgap = new Region();
         HBox.setHgrow(tgap, Priority.ALWAYS);
 
-        if (speaking) {
+        if (m.cameraOn()) {
+            Label camBadge = new Label("📹 Cam bật");
+            camBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #60a5fa; -fx-font-weight: bold; -fx-background-color: #1e293b; -fx-padding: 2 6; -fx-background-radius: 4;");
+            top.getChildren().addAll(avatar, tgap, camBadge);
+        } else if (m.micOn()) {
             Label speakBadge = new Label("● Đang nói");
-            speakBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #10b981; -fx-font-weight: bold;");
-            top.getChildren().addAll(tgap, speakBadge);
-        } else if (muted) {
-            Label muteBadge = new Label("🔇");
-            muteBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #9ca3af;");
-            top.getChildren().addAll(tgap, muteBadge);
-        } else if (cameraOn) {
-            Label camBadge = new Label("📹");
-            camBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #60a5fa;");
-            top.getChildren().addAll(tgap, camBadge);
+            speakBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #10b981; -fx-font-weight: bold; -fx-background-color: #064e3b; -fx-padding: 2 6; -fx-background-radius: 4;");
+            top.getChildren().addAll(avatar, tgap, speakBadge);
         } else {
-            top.getChildren().add(tgap);
+            Label muteBadge = new Label("🔇 Tắt");
+            muteBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #9ca3af; -fx-background-color: #1e202e; -fx-padding: 2 6; -fx-background-radius: 4;");
+            top.getChildren().addAll(avatar, tgap, muteBadge);
         }
 
         Region mid = new Region();
         VBox.setVgrow(mid, Priority.ALWAYS);
 
-        Label nameLbl = new Label(name);
+        Label nameLbl = new Label(m.displayName() + (isMe ? " (Bạn)" : ""));
         nameLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: 700; -fx-text-fill: white;");
 
         tile.getChildren().addAll(top, mid, nameLbl);

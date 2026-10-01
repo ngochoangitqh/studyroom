@@ -268,6 +268,60 @@ public final class CourseRepository {
         }
     }
 
+    public void heartbeatPresence(String courseId, String username, String displayName, boolean cameraOn, boolean micOn) {
+        String upsert = """
+            INSERT INTO course_online_presence(course_id, username, display_name, camera_on, mic_on, last_seen)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT (course_id, username)
+            DO UPDATE SET display_name = EXCLUDED.display_name,
+                          camera_on = EXCLUDED.camera_on,
+                          mic_on = EXCLUDED.mic_on,
+                          last_seen = CURRENT_TIMESTAMP
+        """;
+        try (Connection c = database.connect()) {
+            try (PreparedStatement q = c.prepareStatement(upsert)) {
+                q.setString(1, courseId);
+                q.setString(2, username);
+                q.setString(3, displayName);
+                q.setBoolean(4, cameraOn);
+                q.setBoolean(5, micOn);
+                q.executeUpdate();
+            }
+            try (PreparedStatement q = c.prepareStatement("DELETE FROM course_online_presence WHERE last_seen < CURRENT_TIMESTAMP - INTERVAL '15' SECOND")) {
+                q.executeUpdate();
+            }
+        } catch (SQLException ignored) { }
+    }
+
+    public void leavePresence(String courseId, String username) {
+        try (Connection c = database.connect();
+             PreparedStatement q = c.prepareStatement("DELETE FROM course_online_presence WHERE course_id = ? AND username = ?")) {
+            q.setString(1, courseId);
+            q.setString(2, username);
+            q.executeUpdate();
+        } catch (SQLException ignored) { }
+    }
+
+    public List<OnlineMember> getOnlineMembers(String courseId) {
+        List<OnlineMember> list = new ArrayList<>();
+        String sql = """
+            SELECT username, display_name, camera_on, mic_on
+            FROM course_online_presence
+            WHERE course_id = ? AND last_seen >= CURRENT_TIMESTAMP - INTERVAL '15' SECOND
+            ORDER BY last_seen ASC
+        """;
+        try (Connection c = database.connect(); PreparedStatement q = c.prepareStatement(sql)) {
+            q.setString(1, courseId);
+            ResultSet rs = q.executeQuery();
+            while (rs.next()) {
+                list.add(new OnlineMember(rs.getString(1), rs.getString(2), rs.getBoolean(3), rs.getBoolean(4)));
+            }
+            return list;
+        } catch (SQLException e) {
+            return list;
+        }
+    }
+
     public void seedInitialDemoIfEmpty(String username) {
         try (Connection c = database.connect()) {
             try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM study_course")) {
@@ -342,4 +396,5 @@ public final class CourseRepository {
     public record Course(String id, String code, String title, String description, String ownerUsername, String password, int currentSlide, int memberCount, boolean isPresenting, String hostIp, int screenPort) { }
     public record Material(String id, String courseId, String title, String fileType, String fileSize, String uploadedBy) { }
     public record Schedule(String id, String courseId, String sessionTitle, String sessionTime, String description) { }
+    public record OnlineMember(String username, String displayName, boolean cameraOn, boolean micOn) { }
 }

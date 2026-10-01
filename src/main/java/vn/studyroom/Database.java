@@ -142,6 +142,17 @@ public final class Database {
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
                 )
                 """);
+            statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS course_online_presence (
+                  course_id VARCHAR(64) NOT NULL REFERENCES study_course(course_id),
+                  username VARCHAR(64) NOT NULL REFERENCES app_user(username),
+                  display_name VARCHAR(100) NOT NULL,
+                  camera_on BOOLEAN DEFAULT FALSE,
+                  mic_on BOOLEAN DEFAULT FALSE,
+                  last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                  PRIMARY KEY (course_id, username)
+                )
+                """);
         } catch (SQLException exception) { throw new IllegalStateException("Không thể khởi tạo Studyroom database.", exception); }
     }
 }
