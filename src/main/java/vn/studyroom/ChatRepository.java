@@ -80,6 +80,48 @@ public final class ChatRepository {
             return users;
         } catch (SQLException e) { throw new IllegalStateException("Không thể tải danh sách người dùng.", e); }
     }
+    private final java.util.Map<String, Attachment> attachmentCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public String saveAttachment(String roomId, String sender, String fileName, String fileType, long fileSize, byte[] data) {
+        String id = UUID.randomUUID().toString();
+        try (Connection c = database.connect(); PreparedStatement q = c.prepareStatement(
+                "INSERT INTO chat_attachment(attachment_id, room_id, sender, file_name, file_type, file_size, file_data) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
+            q.setString(1, id);
+            q.setString(2, roomId);
+            q.setString(3, sender);
+            q.setString(4, fileName);
+            q.setString(5, fileType);
+            q.setLong(6, fileSize);
+            q.setBytes(7, data);
+            q.executeUpdate();
+            Attachment att = new Attachment(id, fileName, fileType, fileSize, data);
+            attachmentCache.put(id, att);
+            return id;
+        } catch (SQLException e) {
+            throw new IllegalStateException("Không thể lưu tệp đính kèm.", e);
+        }
+    }
+
+    public Attachment getAttachment(String attachmentId) {
+        if (attachmentId == null || attachmentId.isBlank()) return null;
+        Attachment cached = attachmentCache.get(attachmentId);
+        if (cached != null) return cached;
+        try (Connection c = database.connect(); PreparedStatement q = c.prepareStatement(
+                "SELECT file_name, file_type, file_size, file_data FROM chat_attachment WHERE attachment_id = ?")) {
+            q.setString(1, attachmentId);
+            ResultSet rs = q.executeQuery();
+            if (rs.next()) {
+                Attachment att = new Attachment(attachmentId, rs.getString(1), rs.getString(2), rs.getLong(3), rs.getBytes(4));
+                attachmentCache.put(attachmentId, att);
+                return att;
+            }
+            return null;
+        } catch (SQLException e) {
+            return null;
+        }
+    }
+
     public record Message(long id, String sender, String body) { }
     public record Room(String id, String name) { }
+    public record Attachment(String id, String fileName, String fileType, long fileSize, byte[] data) { }
 }

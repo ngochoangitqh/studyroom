@@ -7,8 +7,11 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
+import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -16,6 +19,8 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
+import javafx.stage.FileChooser;
+import javafx.stage.Popup;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
@@ -215,16 +220,387 @@ public final class StudyroomApp extends Application {
             }
         }, 500, 500);
 
-        HBox composerShell = new HBox(8); composerShell.getStyleClass().add("composer-shell"); Button attach = iconButton("⌇", "Đính kèm tệp"); TextField composer = new TextField(); composer.setPromptText("Nhắn tin..."); composer.getStyleClass().add("composer"); Button emoji = iconButton("☺", "Biểu tượng cảm xúc"); Button send = iconButton("➤", "Gửi tin nhắn"); send.getStyleClass().add("send-icon"); Runnable sendMessage = () -> { if (!composer.getText().isBlank()) { String text = composer.getText().trim(); addMessage(roomId, user.displayName(), text, true, true); if (node != null) node.broadcast(user.displayName(), text); composer.clear(); scroll.setVvalue(1.0); } }; send.setOnAction(e -> sendMessage.run()); composer.setOnAction(e -> sendMessage.run()); HBox.setHgrow(composer, Priority.ALWAYS); composerShell.getChildren().addAll(attach, composer, emoji, send);
-        conversation.getChildren().addAll(head, scroll, composerShell); showChatColumns(threads, conversation);
+        HBox composerShell = new HBox(8);
+        composerShell.getStyleClass().add("composer-shell");
+        Button attach = iconButton("📎", "Đính kèm tệp hoặc ảnh");
+        TextField composer = new TextField();
+        composer.setPromptText("Nhắn tin...");
+        composer.getStyleClass().add("composer");
+        Button emoji = iconButton("😊", "Biểu tượng cảm xúc");
+        Button send = iconButton("➤", "Gửi tin nhắn");
+        send.getStyleClass().add("send-icon");
+
+        Popup emojiPopup = createEmojiPicker(composer);
+        emoji.setOnAction(e -> {
+            if (emojiPopup.isShowing()) {
+                emojiPopup.hide();
+            } else {
+                Bounds bounds = emoji.localToScreen(emoji.getBoundsInLocal());
+                if (bounds != null) {
+                    emojiPopup.show(emoji, bounds.getMinX() - 150, bounds.getMinY() - 295);
+                }
+            }
+        });
+
+        ContextMenu attachMenu = new ContextMenu();
+        MenuItem sendImgItem = new MenuItem("🖼️  Gửi hình ảnh...");
+        sendImgItem.setOnAction(e -> handleSendImage(roomId, scroll));
+        MenuItem sendFileItem = new MenuItem("📎  Gửi tệp tài liệu...");
+        sendFileItem.setOnAction(e -> handleSendFile(roomId, scroll));
+        attachMenu.getItems().addAll(sendImgItem, sendFileItem);
+
+        attach.setOnAction(e -> {
+            Bounds b = attach.localToScreen(attach.getBoundsInLocal());
+            if (b != null) {
+                attachMenu.show(attach, b.getMinX(), b.getMinY() - 75);
+            }
+        });
+
+        Runnable sendMessage = () -> {
+            if (!composer.getText().isBlank()) {
+                String text = composer.getText().trim();
+                addMessage(roomId, user.displayName(), text, true, true);
+                if (node != null) node.broadcast(user.displayName(), text);
+                composer.clear();
+                scroll.setVvalue(1.0);
+            }
+        };
+        send.setOnAction(e -> sendMessage.run());
+        composer.setOnAction(e -> sendMessage.run());
+        HBox.setHgrow(composer, Priority.ALWAYS);
+        composerShell.getChildren().addAll(attach, composer, emoji, send);
+        conversation.getChildren().addAll(head, scroll, composerShell);
+        showChatColumns(threads, conversation);
     }
     private void showChatColumns(VBox threads, VBox conversation) { HBox columns = new HBox(threads, conversation); HBox.setHgrow(conversation, Priority.ALWAYS); VBox.setVgrow(columns, Priority.ALWAYS); content.getChildren().add(columns); }
     private Button chip(String text, boolean selected) { Button chip = new Button(text); chip.getStyleClass().addAll("filter-chip", selected ? "filter-chip-active" : ""); return chip; }
     private HBox thread(ChatRepository.Room room, boolean active) { return thread(room.id(), room.name(), "avatar-group", "Mở nhóm ", active, true); }
     private HBox thread(User person, boolean active) { return thread(directRoomId(user.username(), person.username()), person.displayName(), "avatar-person", "Nhắn tin với ", active, false); }
-    private HBox thread(String roomId, String nameText, String avatarStyle, String action, boolean active, boolean group) { StackPane photo = avatar(initials(nameText), avatarStyle); VBox copy = new VBox(3); copy.getStyleClass().add("thread-copy"); Label name = new Label(nameText); name.getStyleClass().add("thread-name"); List<ChatRepository.Message> latest = chatRepository.recent(roomId, 1); Label preview = new Label(latest.isEmpty() ? "Chưa có tin nhắn" : latest.getFirst().sender() + ": " + latest.getFirst().body()); preview.getStyleClass().add("thread-preview"); copy.getChildren().addAll(name, preview); HBox row = new HBox(12, photo, copy); HBox.setHgrow(copy, Priority.ALWAYS); row.getStyleClass().addAll("thread", active ? "thread-active" : ""); row.setAccessibleText(action + nameText); row.setOnMouseClicked(e -> showChat(roomId, nameText, group)); return row; }
+    private HBox thread(String roomId, String nameText, String avatarStyle, String action, boolean active, boolean group) {
+        StackPane photo = avatar(initials(nameText), avatarStyle);
+        VBox copy = new VBox(3);
+        copy.getStyleClass().add("thread-copy");
+        Label name = new Label(nameText);
+        name.getStyleClass().add("thread-name");
+        List<ChatRepository.Message> latest = chatRepository.recent(roomId, 1);
+        String previewText = "Chưa có tin nhắn";
+        if (!latest.isEmpty()) {
+            String b = latest.getFirst().body();
+            if (b != null && b.startsWith("[IMAGE:")) {
+                previewText = latest.getFirst().sender() + ": 🖼️ [Hình ảnh]";
+            } else if (b != null && b.startsWith("[FILE:")) {
+                String fn = "Tệp tin";
+                try {
+                    String[] p = b.substring(6, b.length() - 1).split(":", 3);
+                    if (p.length > 1) fn = p[1];
+                } catch (Exception ignored) {}
+                previewText = latest.getFirst().sender() + ": 📎 " + fn;
+            } else {
+                previewText = latest.getFirst().sender() + ": " + b;
+            }
+        }
+        Label preview = new Label(previewText);
+        preview.getStyleClass().add("thread-preview");
+        copy.getChildren().addAll(name, preview);
+        HBox row = new HBox(12, photo, copy);
+        HBox.setHgrow(copy, Priority.ALWAYS);
+        row.getStyleClass().addAll("thread", active ? "thread-active" : "");
+        row.setAccessibleText(action + nameText);
+        row.setOnMouseClicked(e -> showChat(roomId, nameText, group));
+        return row;
+    }
     private StackPane avatar(String initials, String style) { Label mark = new Label(initials); mark.getStyleClass().add("avatar-text"); StackPane avatar = new StackPane(mark); avatar.getStyleClass().addAll("avatar", style); avatar.setMinSize(40, 40); avatar.setMaxSize(40, 40); return avatar; }
-    private void addMessage(String roomId, String sender, String text, boolean mine, boolean persist) { if (persist) chatRepository.save(roomId, sender, text); messages.getChildren().removeIf(node -> node.getStyleClass().contains("empty-conversation")); VBox bubble = new VBox(4); bubble.getStyleClass().addAll("bubble", mine ? "bubble-mine" : "bubble-peer"); Label body = new Label(text); body.setWrapText(true); body.setMaxWidth(390); Label time = new Label(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")) + (mine ? "  ✓✓" : "")); time.getStyleClass().add("message-time"); bubble.getChildren().addAll(body, time); VBox cluster = new VBox(4); if (!mine) { Label who = new Label(sender); who.getStyleClass().add("message-sender"); cluster.getChildren().add(who); } cluster.getChildren().add(bubble); HBox line = new HBox(12); line.setAlignment(mine ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT); if (!mine) line.getChildren().addAll(avatar(initials(sender), "avatar-person"), cluster); else line.getChildren().add(cluster); messages.getChildren().add(line); }
+
+    private void addMessage(String roomId, String sender, String text, boolean mine, boolean persist) {
+        if (persist) chatRepository.save(roomId, sender, text);
+        messages.getChildren().removeIf(node -> node.getStyleClass().contains("empty-conversation"));
+        VBox bubble = new VBox(4);
+        bubble.getStyleClass().addAll("bubble", mine ? "bubble-mine" : "bubble-peer");
+        Label time = new Label(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")) + (mine ? "  ✓✓" : ""));
+        time.getStyleClass().add("message-time");
+
+        if (text != null && text.startsWith("[IMAGE:") && text.endsWith("]")) {
+            String inner = text.substring(7, text.length() - 1);
+            int colonIdx = inner.indexOf(':');
+            String attId = colonIdx != -1 ? inner.substring(0, colonIdx) : inner;
+            String fileName = colonIdx != -1 ? inner.substring(colonIdx + 1) : "image.png";
+
+            ChatRepository.Attachment att = chatRepository.getAttachment(attId);
+            if (att != null && att.data() != null) {
+                try {
+                    Image img = new Image(new ByteArrayInputStream(att.data()));
+                    ImageView iv = new ImageView(img);
+                    iv.setFitWidth(260);
+                    iv.setFitHeight(180);
+                    iv.setPreserveRatio(true);
+                    iv.setSmooth(true);
+
+                    StackPane imgBox = new StackPane(iv);
+                    imgBox.setStyle("-fx-background-color: rgba(0,0,0,0.12); -fx-background-radius: 10; -fx-padding: 4; -fx-cursor: hand;");
+                    Tooltip.install(imgBox, new Tooltip("Nhấp để xem đầy đủ / tải về"));
+                    imgBox.setOnMouseClicked(e -> showImagePreviewDialog(fileName, img, att.data()));
+                    bubble.getChildren().addAll(imgBox, time);
+                } catch (Exception ex) {
+                    Label err = new Label("🖼️ [Lỗi hiển thị ảnh: " + fileName + "]");
+                    bubble.getChildren().addAll(err, time);
+                }
+            } else {
+                Label missing = new Label("🖼️ [Hình ảnh: " + fileName + "]");
+                bubble.getChildren().addAll(missing, time);
+            }
+        } else if (text != null && text.startsWith("[FILE:") && text.endsWith("]")) {
+            String inner = text.substring(6, text.length() - 1);
+            String[] parts = inner.split(":", 3);
+            String attId = parts[0];
+            String fileName = parts.length > 1 ? parts[1] : "Tệp tin";
+            String sizeStr = parts.length > 2 ? parts[2] : "";
+
+            HBox fileCard = new HBox(10);
+            fileCard.setAlignment(Pos.CENTER_LEFT);
+            fileCard.setStyle(mine ?
+                "-fx-background-color: rgba(255,255,255,0.18); -fx-background-radius: 10; -fx-padding: 8 12; -fx-cursor: hand;" :
+                "-fx-background-color: #f3f4f6; -fx-background-radius: 10; -fx-padding: 8 12; -fx-cursor: hand;");
+
+            String fileIcon = "📄";
+            String lowerName = fileName.toLowerCase();
+            if (lowerName.endsWith(".pdf")) fileIcon = "📕";
+            else if (lowerName.endsWith(".doc") || lowerName.endsWith(".docx")) fileIcon = "📘";
+            else if (lowerName.endsWith(".xls") || lowerName.endsWith(".xlsx")) fileIcon = "📗";
+            else if (lowerName.endsWith(".ppt") || lowerName.endsWith(".pptx")) fileIcon = "📙";
+            else if (lowerName.endsWith(".zip") || lowerName.endsWith(".rar") || lowerName.endsWith(".7z")) fileIcon = "🗜️";
+            else if (lowerName.endsWith(".mp3") || lowerName.endsWith(".wav")) fileIcon = "🎵";
+            else if (lowerName.endsWith(".mp4") || lowerName.endsWith(".mkv")) fileIcon = "🎬";
+
+            Label iconLbl = new Label(fileIcon);
+            iconLbl.setStyle("-fx-font-size: 24px;");
+
+            VBox fileMeta = new VBox(2);
+            Label nameLbl = new Label(fileName);
+            nameLbl.setStyle("-fx-font-weight: 700; -fx-font-size: 13px; " + (mine ? "-fx-text-fill: white;" : "-fx-text-fill: #1f2937;"));
+            nameLbl.setMaxWidth(200);
+            nameLbl.setWrapText(true);
+
+            Label sLbl = new Label(sizeStr);
+            sLbl.setStyle("-fx-font-size: 11px; " + (mine ? "-fx-text-fill: #e0e7ff;" : "-fx-text-fill: #6b7280;"));
+            fileMeta.getChildren().addAll(nameLbl, sLbl);
+            HBox.setHgrow(fileMeta, Priority.ALWAYS);
+
+            Button dlBtn = new Button("⬇ Tải về");
+            dlBtn.setStyle(mine ?
+                "-fx-background-color: white; -fx-text-fill: #6366f1; -fx-font-weight: 700; -fx-font-size: 11px; -fx-background-radius: 6; -fx-cursor: hand;" :
+                "-fx-background-color: #6366f1; -fx-text-fill: white; -fx-font-weight: 700; -fx-font-size: 11px; -fx-background-radius: 6; -fx-cursor: hand;");
+            dlBtn.setOnAction(e -> {
+                ChatRepository.Attachment att = chatRepository.getAttachment(attId);
+                if (att != null && att.data() != null) {
+                    FileChooser saveChooser = new FileChooser();
+                    saveChooser.setInitialFileName(fileName);
+                    File target = saveChooser.showSaveDialog(scene != null && scene.getWindow() != null ? scene.getWindow() : null);
+                    if (target != null) {
+                        try {
+                            Files.write(target.toPath(), att.data());
+                            toast("Đã lưu tệp: " + target.getName());
+                        } catch (Exception ex) {
+                            toast("Lỗi lưu tệp: " + ex.getMessage());
+                        }
+                    }
+                } else {
+                    toast("Không tìm thấy dữ liệu tệp.");
+                }
+            });
+
+            fileCard.getChildren().addAll(iconLbl, fileMeta, dlBtn);
+            bubble.getChildren().addAll(fileCard, time);
+        } else {
+            Label body = new Label(text);
+            body.setWrapText(true);
+            body.setMaxWidth(390);
+            bubble.getChildren().addAll(body, time);
+        }
+
+        VBox cluster = new VBox(4);
+        if (!mine) {
+            Label who = new Label(sender);
+            who.getStyleClass().add("message-sender");
+            cluster.getChildren().add(who);
+        }
+        cluster.getChildren().add(bubble);
+        HBox line = new HBox(12);
+        line.setAlignment(mine ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
+        if (!mine) line.getChildren().addAll(avatar(initials(sender), "avatar-person"), cluster);
+        else line.getChildren().add(cluster);
+        messages.getChildren().add(line);
+    }
+
+    private Popup createEmojiPicker(TextField targetField) {
+        Popup popup = new Popup();
+        popup.setAutoHide(true);
+
+        VBox box = new VBox(8);
+        box.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 12; " +
+                "-fx-border-color: #e5e7eb; -fx-border-radius: 12; " +
+                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.15), 16, 0.2, 0, 4);");
+        box.setPrefWidth(330);
+        box.setMaxWidth(330);
+
+        Label title = new Label("Biểu tượng cảm xúc (Emoji)");
+        title.setStyle("-fx-font-size: 13px; -fx-font-weight: 800; -fx-text-fill: #1f2937;");
+
+        String[][] categories = {
+            {"Cảm xúc", "😀,😃,😄,😁,😆,😅,😂,🤣,😊,😇,🙂,🙃,😉,😌,😍,🥰,😘,😋,😛,😜,🤪,😝,🤗,🤭,🤔,🤫,🤐,🤨,😐,😑,😶,😏,😒,🙄,😬,😴,😷,🤯,🥳,😎"},
+            {"Cử chỉ & Tim", "👍,👎,👏,🙌,🤝,✌️,🤞,🤟,🤙,👈,👉,👆,👇,☝️,✋,🙏,❤️,🧡,💛,💚,💙,💜,🖤,💔,❣️,💕,💞,💓,💗,💖,💘,✨,🔥,🌟,⭐,💯,🎉,🎊,🚀,💡"},
+            {"Học tập & Đồ vật", "📚,📖,📝,✏️,🖊️,🎓,🎒,💻,🖥️,📱,📊,📈,📅,🕒,⏰,🏆,🥇,🎯,📌,📎,☕,🍕,🍔,🍰,🎁,⚽,🏀,🎨,🎵,🎶,🔔,📣,🔍,🔒,🔑,✅,❌,⚠️,❓,❗"}
+        };
+
+        VBox catContainer = new VBox(10);
+        for (String[] cat : categories) {
+            Label catLabel = new Label(cat[0]);
+            catLabel.setStyle("-fx-font-size: 11px; -fx-font-weight: 700; -fx-text-fill: #6b7280; -fx-padding: 2 0 0 0;");
+
+            FlowPane flow = new FlowPane(4, 4);
+            flow.setPrefWrapLength(300);
+            String[] emojis = cat[1].split(",");
+            for (String em : emojis) {
+                Button btn = new Button(em);
+                btn.setStyle("-fx-background-color: transparent; -fx-font-size: 18px; -fx-padding: 4 6; -fx-cursor: hand; -fx-background-radius: 6;");
+                btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: #f3f4f6; -fx-font-size: 18px; -fx-padding: 4 6; -fx-cursor: hand; -fx-background-radius: 6;"));
+                btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: transparent; -fx-font-size: 18px; -fx-padding: 4 6; -fx-cursor: hand; -fx-background-radius: 6;"));
+                btn.setOnAction(e -> {
+                    int caret = targetField.getCaretPosition();
+                    String cur = targetField.getText();
+                    if (cur == null) cur = "";
+                    if (caret < 0 || caret > cur.length()) caret = cur.length();
+                    targetField.setText(cur.substring(0, caret) + em + cur.substring(caret));
+                    targetField.positionCaret(caret + em.length());
+                    targetField.requestFocus();
+                });
+                flow.getChildren().add(btn);
+            }
+            catContainer.getChildren().addAll(catLabel, flow);
+        }
+
+        ScrollPane sp = new ScrollPane(catContainer);
+        sp.setFitToWidth(true);
+        sp.setPrefHeight(230);
+        sp.setMaxHeight(230);
+        sp.setStyle("-fx-background-color: transparent; -fx-background: transparent; -fx-padding: 0;");
+        sp.getStyleClass().add("thread-scroll");
+
+        box.getChildren().addAll(title, sp);
+        popup.getContent().add(box);
+        return popup;
+    }
+
+    private void handleSendImage(String roomId, ScrollPane scroll) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Chọn hình ảnh để gửi");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Hình ảnh (*.png, *.jpg, *.jpeg, *.gif, *.webp)", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.bmp"));
+        File file = chooser.showOpenDialog(scene != null && scene.getWindow() != null ? scene.getWindow() : null);
+        if (file != null) {
+            if (file.length() > 25 * 1024 * 1024) {
+                toast("File ảnh quá lớn (> 25MB).");
+                return;
+            }
+            try {
+                byte[] data = Files.readAllBytes(file.toPath());
+                String ext = file.getName().contains(".") ? file.getName().substring(file.getName().lastIndexOf('.') + 1).toLowerCase() : "png";
+                String attId = chatRepository.saveAttachment(roomId, user.displayName(), file.getName(), "image/" + ext, file.length(), data);
+                String payload = "[IMAGE:" + attId + ":" + file.getName() + "]";
+                addMessage(roomId, user.displayName(), payload, true, true);
+                if (node != null) node.broadcast(user.displayName(), payload);
+                scroll.setVvalue(1.0);
+            } catch (Exception ex) {
+                toast("Lỗi khi gửi ảnh: " + ex.getMessage());
+            }
+        }
+    }
+
+    private void handleSendFile(String roomId, ScrollPane scroll) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Chọn tệp tài liệu để gửi");
+        File file = chooser.showOpenDialog(scene != null && scene.getWindow() != null ? scene.getWindow() : null);
+        if (file != null) {
+            if (file.length() > 50 * 1024 * 1024) {
+                toast("Tệp tin quá lớn (> 50MB).");
+                return;
+            }
+            try {
+                byte[] data = Files.readAllBytes(file.toPath());
+                String ext = file.getName().contains(".") ? file.getName().substring(file.getName().lastIndexOf('.') + 1).toLowerCase() : "bin";
+                String sizeStr = formatFileSize(file.length());
+                String attId = chatRepository.saveAttachment(roomId, user.displayName(), file.getName(), ext, file.length(), data);
+                String payload = "[FILE:" + attId + ":" + file.getName() + ":" + sizeStr + "]";
+                addMessage(roomId, user.displayName(), payload, true, true);
+                if (node != null) node.broadcast(user.displayName(), payload);
+                scroll.setVvalue(1.0);
+            } catch (Exception ex) {
+                toast("Lỗi khi gửi tệp: " + ex.getMessage());
+            }
+        }
+    }
+
+    private void showImagePreviewDialog(String fileName, Image img, byte[] rawBytes) {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Xem hình ảnh · " + fileName);
+        dialog.setHeaderText(null);
+        dialog.setGraphic(null);
+        dialog.getDialogPane().getStylesheets().addAll(
+            getClass().getResource("/tokens.css").toExternalForm(),
+            getClass().getResource("/studyroom.css").toExternalForm()
+        );
+        dialog.getDialogPane().getStyleClass().add("custom-dialog");
+
+        VBox box = new VBox(12);
+        box.setAlignment(Pos.CENTER);
+        box.setPadding(new Insets(16));
+
+        ImageView iv = new ImageView(img);
+        iv.setFitWidth(600);
+        iv.setFitHeight(450);
+        iv.setPreserveRatio(true);
+        iv.setSmooth(true);
+
+        HBox actionRow = new HBox(12);
+        actionRow.setAlignment(Pos.CENTER_RIGHT);
+
+        Label nameLbl = new Label(fileName);
+        nameLbl.setStyle("-fx-font-weight: bold; -fx-font-size: 13px;");
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button saveBtn = new Button("💾 Lưu về máy");
+        saveBtn.getStyleClass().addAll("button", "button-primary");
+        saveBtn.setOnAction(e -> {
+            FileChooser saveChooser = new FileChooser();
+            saveChooser.setInitialFileName(fileName);
+            File target = saveChooser.showSaveDialog(dialog.getDialogPane().getScene().getWindow());
+            if (target != null) {
+                try {
+                    Files.write(target.toPath(), rawBytes);
+                    toast("Đã lưu ảnh thành công!");
+                } catch (Exception ex) {
+                    toast("Lỗi lưu ảnh: " + ex.getMessage());
+                }
+            }
+        });
+
+        Button closeBtn = new Button("Đóng");
+        closeBtn.getStyleClass().add("button");
+        closeBtn.setOnAction(e -> dialog.close());
+
+        actionRow.getChildren().addAll(nameLbl, spacer, saveBtn, closeBtn);
+        box.getChildren().addAll(iv, actionRow);
+
+        dialog.getDialogPane().setContent(box);
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.getDialogPane().lookupButton(ButtonType.CLOSE).setVisible(false);
+        dialog.show();
+    }
+
+    private String formatFileSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
+        return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
+    }
     private void createGroup() {
         Dialog<String> dialog = new Dialog<>();
         dialog.setTitle("Tạo nhóm mới");
