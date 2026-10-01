@@ -3,6 +3,7 @@ package vn.studyroom;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.*;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
@@ -12,6 +13,9 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -124,8 +128,19 @@ public final class StudyroomApp extends Application {
         Label logo = new Label("◉  Studyroom"); logo.getStyleClass().add("brand");
         Button chat = nav("☷", "Trò chuyện", this::showChat); Button room = nav("◉", "Phòng chung", this::showRoom); Button music = nav("♫", "Nghe nhạc", this::showMusic); Button profile = nav("◎", "Hồ sơ", this::showProfile);
         Region gap = new Region(); VBox.setVgrow(gap, Priority.ALWAYS);
-        Label me = new Label("●  " + user.displayName() + "\n     Đang hoạt động"); me.getStyleClass().add("presence");
-        bar.getChildren().addAll(logo, spacer(18), chat, room, music, profile, gap, me); return bar;
+        HBox meBox = new HBox(10);
+        meBox.setAlignment(Pos.CENTER_LEFT);
+        meBox.setStyle("-fx-padding: 8 10; -fx-background-color: rgba(255,255,255,0.06); -fx-background-radius: 12; -fx-cursor: hand;");
+        StackPane meAvt = userAvatar(user.username(), initials(user.displayName()), "avatar-person", 36);
+        VBox meCopy = new VBox(2);
+        Label meName = new Label(user.displayName());
+        meName.setStyle("-fx-font-weight: 700; -fx-font-size: 13px; -fx-text-fill: #111827;");
+        Label meStatus = new Label("📷  Hồ sơ & Đổi ảnh");
+        meStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #6366f1; -fx-font-weight: 600;");
+        meCopy.getChildren().addAll(meName, meStatus);
+        meBox.getChildren().addAll(meAvt, meCopy);
+        meBox.setOnMouseClicked(e -> showProfile());
+        bar.getChildren().addAll(logo, spacer(18), chat, room, music, profile, gap, meBox); return bar;
     }
     private Button nav(String icon, String label, Runnable action) { Button b = new Button(icon + "   " + label); b.getStyleClass().add("nav-item"); b.setMaxWidth(Double.MAX_VALUE); b.setOnAction(e -> action.run()); return b; }
     private Region spacer(double h) { Region r = new Region(); r.setMinHeight(h); return r; }
@@ -135,7 +150,7 @@ public final class StudyroomApp extends Application {
     private void showChat(String roomId, String conversationName, boolean group) {
         selectedRoomId = roomId;
         content.getChildren().clear(); content.getStyleClass().setAll("chat-workspace"); content.setPadding(Insets.EMPTY); content.setSpacing(0);
-        VBox threads = new VBox(8); threads.getStyleClass().add("thread-list"); threads.setPrefWidth(420); threads.setMinWidth(360);
+        VBox threads = new VBox(8); threads.getStyleClass().add("thread-list"); threads.setPrefWidth(380); threads.setMinWidth(320);
         HBox threadTitle = new HBox(); threadTitle.getStyleClass().add("thread-title-row"); Label title = new Label("Trò chuyện"); title.getStyleClass().add("chat-page-title"); Region titlePush = new Region(); HBox.setHgrow(titlePush, Priority.ALWAYS); Button create = iconButton("✎", "Tạo nhóm mới"); create.setOnAction(e -> createGroup()); threadTitle.getChildren().addAll(title, titlePush, create);
         TextField find = new TextField(); find.setPromptText("⌕  Tìm kiếm cuộc trò chuyện..."); find.getStyleClass().add("chat-search");
         HBox filters = new HBox(8, chip("Tất cả", true), chip("Nhóm", false), chip("Cá nhân", false), chip("Chưa đọc", false)); filters.getStyleClass().add("chat-filters");
@@ -150,7 +165,7 @@ public final class StudyroomApp extends Application {
             Label reqSection = new Label("LỜI MỜI KẾT BẠN  (" + pendingList.size() + ")"); reqSection.getStyleClass().add("thread-section"); threadItems.getChildren().add(reqSection);
             pendingList.forEach(person -> {
                 HBox row = new HBox(8); row.getStyleClass().add("thread"); row.setAlignment(Pos.CENTER_LEFT);
-                StackPane photo = avatar(initials(person.displayName()), "avatar-person");
+                StackPane photo = userAvatar(person.username(), initials(person.displayName()), "avatar-person", 40);
                 Label name = new Label(person.displayName()); name.getStyleClass().add("thread-name");
                 Region gap = new Region(); HBox.setHgrow(gap, Priority.ALWAYS);
                 Button accept = new Button("✓"); accept.getStyleClass().addAll("icon-button"); accept.setTooltip(new Tooltip("Chấp nhận"));
@@ -169,15 +184,36 @@ public final class StudyroomApp extends Application {
         threadItems.getChildren().add(addFriendBtn);
         ScrollPane threadScroll = new ScrollPane(threadItems); threadScroll.setFitToWidth(true); threadScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER); threadScroll.getStyleClass().add("thread-scroll"); VBox.setVgrow(threadScroll, Priority.ALWAYS); threads.getChildren().addAll(threadTitle, find, filters, threadScroll);
         VBox conversation = new VBox(); conversation.getStyleClass().add("conversation"); HBox.setHgrow(conversation, Priority.ALWAYS);
-        if (roomId == null) { showEmptyConversation(conversation); showChatColumns(threads, conversation); return; }
+        if (roomId == null) { showEmptyConversation(conversation); showChatColumns(threads, conversation, null); return; }
         List<String> memberNames = group ? chatRepository.membersOf(roomId) : List.of();
         String metaText = group ? memberNames.size() + " thành viên" : "Đang hoạt động";
-        HBox head = new HBox(12); head.getStyleClass().add("conversation-header"); StackPane groupAvatar = avatar(initials(conversationName), group ? "avatar-group" : "avatar-person"); VBox groupCopy = new VBox(2); Label groupName = new Label(conversationName); groupName.getStyleClass().add("group-name"); Label groupMeta = new Label(metaText); groupMeta.getStyleClass().add("group-meta"); groupCopy.getChildren().addAll(groupName, groupMeta); Region push = new Region(); HBox.setHgrow(push, Priority.ALWAYS);
+        
+        HBox head = new HBox(12); head.getStyleClass().add("conversation-header"); head.setAlignment(Pos.CENTER_LEFT);
+        
+        StackPane groupAvatar = group ? groupAvatar(roomId, conversationName, "avatar-group", 42)
+                                      : userAvatar(conversationName, initials(conversationName), "avatar-person", 42);
+        groupAvatar.setCursor(javafx.scene.Cursor.HAND);
+        if (group) {
+            Tooltip.install(groupAvatar, new Tooltip("Nhấp để đổi ảnh đại diện nhóm"));
+            groupAvatar.setOnMouseClicked(e -> showChangeGroupAvatarDialog(roomId, conversationName));
+        } else {
+            Tooltip.install(groupAvatar, new Tooltip("Nhấp để đổi ảnh đại diện cá nhân"));
+            groupAvatar.setOnMouseClicked(e -> showChangeUserAvatarDialog());
+        }
+        
+        VBox groupCopy = new VBox(2); Label groupName = new Label(conversationName); groupName.getStyleClass().add("group-name"); Label groupMeta = new Label(metaText); groupMeta.getStyleClass().add("group-meta"); groupCopy.getChildren().addAll(groupName, groupMeta); Region push = new Region(); HBox.setHgrow(push, Priority.ALWAYS);
         Button addMember = iconButton("＋", "Thêm thành viên"); if (group) addMember.setOnAction(e -> showAddMemberDialog(roomId, conversationName)); else addMember.setVisible(false);
-        Button call = iconButton("☎", "Gọi thoại"); Button video = iconButton("📹", "Bật video"); Button search = iconButton("⌕", "Tìm trong trò chuyện"); Button more = iconButton("•••", "Thêm tuỳ chọn");
+        Button call = iconButton("☎", "Gọi thoại"); Button video = iconButton("📹", "Bật video"); Button search = iconButton("⌕", "Tìm trong trò chuyện"); Button more = iconButton("•••", "Thông tin cuộc trò chuyện");
         call.setOnAction(e -> startOrJoinCall(roomId, conversationName, group ? "GROUP" : "DIRECT", false));
         video.setOnAction(e -> startOrJoinCall(roomId, conversationName, group ? "GROUP" : "DIRECT", true));
         head.getChildren().addAll(groupAvatar, groupCopy, push, addMember, call, video, search, more);
+
+        Node infoPanel = buildChatInfoPanel(roomId, conversationName, group, conversationName);
+
+        more.setOnAction(e -> {
+            infoPanel.setVisible(!infoPanel.isVisible());
+            infoPanel.setManaged(infoPanel.isVisible());
+        });
 
         CallRepository.CallSession activeCall = callRepo.getActiveCall(roomId);
         if (group && activeCall != null) {
@@ -280,14 +316,20 @@ public final class StudyroomApp extends Application {
         HBox.setHgrow(composer, Priority.ALWAYS);
         composerShell.getChildren().addAll(attach, composer, emoji, send);
         conversation.getChildren().addAll(head, scroll, composerShell);
-        showChatColumns(threads, conversation);
+        showChatColumns(threads, conversation, infoPanel);
     }
-    private void showChatColumns(VBox threads, VBox conversation) { HBox columns = new HBox(threads, conversation); HBox.setHgrow(conversation, Priority.ALWAYS); VBox.setVgrow(columns, Priority.ALWAYS); content.getChildren().add(columns); }
+    private void showChatColumns(VBox threads, VBox conversation, Node infoPanel) {
+        HBox columns = (infoPanel != null) ? new HBox(threads, conversation, infoPanel) : new HBox(threads, conversation);
+        HBox.setHgrow(conversation, Priority.ALWAYS);
+        VBox.setVgrow(columns, Priority.ALWAYS);
+        content.getChildren().add(columns);
+    }
     private Button chip(String text, boolean selected) { Button chip = new Button(text); chip.getStyleClass().addAll("filter-chip", selected ? "filter-chip-active" : ""); return chip; }
-    private HBox thread(ChatRepository.Room room, boolean active) { return thread(room.id(), room.name(), "avatar-group", "Mở nhóm ", active, true); }
-    private HBox thread(User person, boolean active) { return thread(directRoomId(user.username(), person.username()), person.displayName(), "avatar-person", "Nhắn tin với ", active, false); }
-    private HBox thread(String roomId, String nameText, String avatarStyle, String action, boolean active, boolean group) {
-        StackPane photo = avatar(initials(nameText), avatarStyle);
+    private HBox thread(ChatRepository.Room room, boolean active) { return thread(room.id(), room.name(), "avatar-group", "Mở nhóm ", active, true, null); }
+    private HBox thread(User person, boolean active) { return thread(directRoomId(user.username(), person.username()), person.displayName(), "avatar-person", "Nhắn tin với ", active, false, person.username()); }
+    private HBox thread(String roomId, String nameText, String avatarStyle, String action, boolean active, boolean group, String personUsername) {
+        StackPane photo = group ? groupAvatar(roomId, nameText, avatarStyle, 40)
+                                : userAvatar(personUsername != null ? personUsername : nameText, initials(nameText), avatarStyle, 40);
         VBox copy = new VBox(3);
         copy.getStyleClass().add("thread-copy");
         Label name = new Label(nameText);
@@ -326,7 +368,211 @@ public final class StudyroomApp extends Application {
         row.setOnMouseClicked(e -> showChat(roomId, nameText, group));
         return row;
     }
-    private StackPane avatar(String initials, String style) { Label mark = new Label(initials); mark.getStyleClass().add("avatar-text"); StackPane avatar = new StackPane(mark); avatar.getStyleClass().addAll("avatar", style); avatar.setMinSize(40, 40); avatar.setMaxSize(40, 40); return avatar; }
+    private StackPane userAvatar(String usernameOrName, String initials, String style, double size) {
+        Image img = auth.getUserAvatarImage(usernameOrName);
+        if (img != null && !img.isError() && img.getWidth() > 0) {
+            return imageAvatar(img, style, size);
+        }
+        return avatar(initials, style, size);
+    }
+
+    private StackPane groupAvatar(String roomId, String name, String style, double size) {
+        Image img = chatRepository.getGroupAvatarImage(roomId);
+        if (img != null && !img.isError() && img.getWidth() > 0) {
+            return imageAvatar(img, style, size);
+        }
+        return avatar(initials(name), style, size);
+    }
+
+    private StackPane imageAvatar(Image img, String style, double size) {
+        ImageView iv = new ImageView(img);
+        iv.setFitWidth(size);
+        iv.setFitHeight(size);
+        iv.setPreserveRatio(false);
+        iv.setSmooth(true);
+
+        javafx.scene.shape.Circle clip = new javafx.scene.shape.Circle(size / 2, size / 2, size / 2);
+        iv.setClip(clip);
+
+        StackPane avatarPane = new StackPane(iv);
+        avatarPane.getStyleClass().addAll("avatar", style);
+        avatarPane.setMinSize(size, size);
+        avatarPane.setMaxSize(size, size);
+        return avatarPane;
+    }
+
+    private StackPane avatar(String initials, String style, double size) {
+        Label mark = new Label(initials);
+        mark.getStyleClass().add("avatar-text");
+        StackPane avatarPane = new StackPane(mark);
+        avatarPane.getStyleClass().addAll("avatar", style);
+        avatarPane.setMinSize(size, size);
+        avatarPane.setMaxSize(size, size);
+        return avatarPane;
+    }
+
+    private StackPane avatar(String initials, String style) {
+        return avatar(initials, style, 40);
+    }
+
+    private Node buildChatInfoPanel(String roomId, String conversationName, boolean group, String targetUsername) {
+        VBox container = new VBox(16);
+        container.setPrefWidth(300);
+        container.setMinWidth(280);
+        container.setMaxWidth(320);
+        container.setStyle("-fx-background-color: #ffffff; -fx-border-color: #e5e7eb; -fx-border-width: 0 0 0 1; -fx-padding: 24 16;");
+        container.setAlignment(Pos.TOP_CENTER);
+
+        StackPane avatarPane = group ? groupAvatar(roomId, conversationName, "avatar-group", 80)
+                                      : userAvatar(targetUsername != null ? targetUsername : conversationName, initials(conversationName), "avatar-person", 80);
+        avatarPane.setCursor(javafx.scene.Cursor.HAND);
+        
+        Label camBadge = new Label("📷");
+        camBadge.setStyle("-fx-background-color: #6366f1; -fx-text-fill: white; -fx-font-size: 11px; -fx-padding: 3 6; -fx-background-radius: 10;");
+        StackPane.setAlignment(camBadge, Pos.BOTTOM_RIGHT);
+        avatarPane.getChildren().add(camBadge);
+
+        if (group) {
+            Tooltip.install(avatarPane, new Tooltip("Nhấp để đổi ảnh đại diện nhóm"));
+            avatarPane.setOnMouseClicked(e -> showChangeGroupAvatarDialog(roomId, conversationName));
+        } else {
+            Tooltip.install(avatarPane, new Tooltip("Nhấp để đổi ảnh đại diện cá nhân"));
+            avatarPane.setOnMouseClicked(e -> showChangeUserAvatarDialog());
+        }
+
+        Label nameLbl = new Label(conversationName);
+        nameLbl.setStyle("-fx-font-size: 17px; -fx-font-weight: 800; -fx-text-fill: #111827; -fx-text-alignment: center;");
+        nameLbl.setWrapText(true);
+
+        List<String> memberNames = group ? chatRepository.membersOf(roomId) : List.of();
+        String metaText = group ? (memberNames.size() + " thành viên") : "Đang hoạt động";
+        Label metaLbl = new Label(metaText);
+        metaLbl.setStyle("-fx-font-size: 12px; -fx-text-fill: #6b7280;");
+
+        HBox quickActions = new HBox(20);
+        quickActions.setAlignment(Pos.CENTER);
+        VBox muteBtn = quickActionItem("🔔", "Tắt thông báo", () -> toast("Đã chuyển đổi thông báo cuộc trò chuyện"));
+        VBox searchBtn = quickActionItem("⌕", "Tìm kiếm", () -> toast("Tìm kiếm trong trò chuyện"));
+        quickActions.getChildren().addAll(muteBtn, searchBtn);
+
+        VBox headerBox = new VBox(10, avatarPane, nameLbl, metaLbl, spacer(4), quickActions);
+        headerBox.setAlignment(Pos.CENTER);
+
+        VBox customSection = createInfoSection("Tùy chỉnh đoạn chat", List.of(
+            group ? createSectionButton("🖼️  Đổi ảnh đại diện nhóm", e -> showChangeGroupAvatarDialog(roomId, conversationName)) : createSectionButton("📷  Đổi ảnh đại diện cá nhân", e -> showChangeUserAvatarDialog()),
+            group ? createSectionButton("✏️  Đổi tên nhóm", e -> showRenameGroupDialog(roomId, conversationName)) : null
+        ));
+
+        VBox membersSection = null;
+        if (group) {
+            VBox memberItems = new VBox(8);
+            for (String mName : memberNames) {
+                HBox mRow = new HBox(8);
+                mRow.setAlignment(Pos.CENTER_LEFT);
+                StackPane mAvt = userAvatar(mName, initials(mName), "avatar-person", 28);
+                Label mLbl = new Label(mName);
+                mLbl.setStyle("-fx-font-size: 13px; -fx-text-fill: #374151; -fx-font-weight: 600;");
+                mRow.getChildren().addAll(mAvt, mLbl);
+                memberItems.getChildren().add(mRow);
+            }
+            Button addMemBtn = createSectionButton("＋  Thêm thành viên", e -> showAddMemberDialog(roomId, conversationName));
+            memberItems.getChildren().add(addMemBtn);
+
+            membersSection = createInfoSectionContent("Thành viên trong đoạn chat (" + memberNames.size() + ")", memberItems);
+        }
+
+        VBox privacySection = createInfoSection("Quyền riêng tư & hỗ trợ", List.of(
+            group ? createSectionButton("🚪  Rời khỏi nhóm", e -> leaveGroup(roomId, conversationName)) : null
+        ));
+
+        container.getChildren().add(headerBox);
+        container.getChildren().add(new Separator());
+        if (customSection != null) container.getChildren().add(customSection);
+        if (membersSection != null) container.getChildren().add(membersSection);
+        if (privacySection != null) container.getChildren().add(privacySection);
+
+        ScrollPane scroll = new ScrollPane(container);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
+        return scroll;
+    }
+
+    private VBox quickActionItem(String icon, String text, Runnable action) {
+        Button btn = new Button(icon);
+        btn.setStyle("-fx-background-color: #f3f4f6; -fx-background-radius: 50%; -fx-min-width: 38px; -fx-min-height: 38px; -fx-max-width: 38px; -fx-max-height: 38px; -fx-font-size: 16px; -fx-cursor: hand;");
+        btn.setOnAction(e -> action.run());
+        Label lbl = new Label(text);
+        lbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #4b5563; -fx-text-alignment: center;");
+        VBox box = new VBox(4, btn, lbl);
+        box.setAlignment(Pos.CENTER);
+        return box;
+    }
+
+    private VBox createInfoSection(String title, List<Button> buttons) {
+        VBox box = new VBox(6);
+        Label titleLbl = new Label(title);
+        titleLbl.setStyle("-fx-font-size: 13px; -fx-font-weight: 700; -fx-text-fill: #374151;");
+        box.getChildren().add(titleLbl);
+
+        boolean hasAny = false;
+        for (Button btn : buttons) {
+            if (btn != null) {
+                box.getChildren().add(btn);
+                hasAny = true;
+            }
+        }
+        return hasAny ? box : null;
+    }
+
+    private VBox createInfoSectionContent(String title, Node content) {
+        VBox box = new VBox(8);
+        Label titleLbl = new Label(title);
+        titleLbl.setStyle("-fx-font-size: 13px; -fx-font-weight: 700; -fx-text-fill: #374151;");
+        box.getChildren().addAll(titleLbl, content);
+        return box;
+    }
+
+    private Button createSectionButton(String text, javafx.event.EventHandler<javafx.event.ActionEvent> handler) {
+        Button btn = new Button(text);
+        btn.setStyle("-fx-background-color: transparent; -fx-text-fill: #1f2937; -fx-font-size: 13px; -fx-alignment: CENTER_LEFT; -fx-cursor: hand; -fx-padding: 6 8;");
+        btn.setMaxWidth(Double.MAX_VALUE);
+        btn.setOnAction(handler);
+        btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: #f3f4f6; -fx-text-fill: #1f2937; -fx-font-size: 13px; -fx-alignment: CENTER_LEFT; -fx-cursor: hand; -fx-padding: 6 8; -fx-background-radius: 6;"));
+        btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: transparent; -fx-text-fill: #1f2937; -fx-font-size: 13px; -fx-alignment: CENTER_LEFT; -fx-cursor: hand; -fx-padding: 6 8;"));
+        return btn;
+    }
+
+    private void showRenameGroupDialog(String roomId, String currentName) {
+        TextInputDialog dialog = new TextInputDialog(currentName);
+        dialog.setTitle("Đổi tên nhóm");
+        dialog.setHeaderText("Nhập tên mới cho nhóm " + currentName);
+        dialog.setContentText("Tên nhóm mới:");
+        dialog.showAndWait().ifPresent(newName -> {
+            if (!newName.isBlank()) {
+                try (Connection c = database.connect();
+                     PreparedStatement q = c.prepareStatement("UPDATE study_group SET room_name = ? WHERE room_id = ?")) {
+                    q.setString(1, newName.trim());
+                    q.setString(2, roomId);
+                    q.executeUpdate();
+                    showChat(roomId, newName.trim(), true);
+                } catch (SQLException ex) {
+                    toast("Không thể đổi tên nhóm: " + ex.getMessage());
+                }
+            }
+        });
+    }
+
+    private void leaveGroup(String roomId, String roomName) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "Bạn có chắc muốn rời khỏi nhóm " + roomName + "?", ButtonType.YES, ButtonType.NO);
+        alert.setTitle("Xác nhận rời nhóm");
+        alert.showAndWait().ifPresent(btn -> {
+            if (btn == ButtonType.YES) {
+                chatRepository.removeMember(roomId, user.username());
+                showChat();
+            }
+        });
+    }
 
     private void addMessage(String roomId, String sender, String text, boolean mine, boolean persist) {
         if (persist) chatRepository.save(roomId, sender, text);
