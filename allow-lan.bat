@@ -25,7 +25,10 @@ netsh advfirewall firewall add rule name="Studyroom Chat P2P" dir=in action=allo
 netsh advfirewall firewall delete rule name="Studyroom Voice Calling" >nul 2>&1
 netsh advfirewall firewall add rule name="Studyroom Voice Calling" dir=in action=allow protocol=UDP localport=5100 >nul 2>&1
 
-echo [OK] Da mo thanh cong cac cong Firewall!
+netsh advfirewall firewall delete rule name="Studyroom Screen Sharing" >nul 2>&1
+netsh advfirewall firewall add rule name="Studyroom Screen Sharing" dir=in action=allow protocol=TCP localport=5200 >nul 2>&1
+
+echo [OK] Da mo thanh cong cac cong Firewall (5432, 5050, 5100, 5200)!
 echo.
 
 echo 2. Khoi dong lai dich vu PostgreSQL...
