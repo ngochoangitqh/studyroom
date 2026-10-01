@@ -1049,41 +1049,31 @@ public final class StudyroomApp extends Application {
         dock.setMaxHeight(50);
 
         // Nút Mic
-        Button micBtn = new Button(isMicOn ? "🟢 Mic: BẬT" : "🔴 Mic: TẮT");
-        micBtn.setStyle(isMicOn ?
-            "-fx-background-color: #16a34a; -fx-text-fill: white; -fx-font-weight: 800; -fx-background-radius: 8; -fx-cursor: hand;" :
-            "-fx-background-color: #dc2626; -fx-text-fill: white; -fx-font-weight: 800; -fx-background-radius: 8; -fx-cursor: hand;");
+        Button micBtn = new Button(isMicOn ? "🎙️ Mic" : "🔇 Mic");
+        micBtn.getStyleClass().setAll(isMicOn ? "dock-btn" : "dock-btn-danger");
         micBtn.setOnAction(e -> {
             isMicOn = !isMicOn;
             classroomVoice.setMuted(!isMicOn);
-            micBtn.setText(isMicOn ? "🟢 Mic: BẬT" : "🔴 Mic: TẮT");
-            micBtn.setStyle(isMicOn ?
-                "-fx-background-color: #16a34a; -fx-text-fill: white; -fx-font-weight: 800; -fx-background-radius: 8; -fx-cursor: hand;" :
-                "-fx-background-color: #dc2626; -fx-text-fill: white; -fx-font-weight: 800; -fx-background-radius: 8; -fx-cursor: hand;");
+            micBtn.setText(isMicOn ? "🎙️ Mic" : "🔇 Mic");
+            micBtn.getStyleClass().setAll(isMicOn ? "dock-btn" : "dock-btn-danger");
             courseRepo.heartbeatPresence(course.id(), user.username(), user.displayName(), isCameraOn, isMicOn, myVoiceIp, myVoicePort, isLocalSpeaking, myCameraPort);
             Runnable myCb = tileSpeakingUpdateCallbacks.get(user.username());
             if (myCb != null) myCb.run();
         });
 
         // Nút Loa
-        Button speakerBtn = new Button(isSpeakerOn ? "🟢 Loa: BẬT" : "🔴 Loa: TẮT");
-        speakerBtn.setStyle(isSpeakerOn ?
-            "-fx-background-color: #16a34a; -fx-text-fill: white; -fx-font-weight: 800; -fx-background-radius: 8; -fx-cursor: hand;" :
-            "-fx-background-color: #dc2626; -fx-text-fill: white; -fx-font-weight: 800; -fx-background-radius: 8; -fx-cursor: hand;");
+        Button speakerBtn = new Button(isSpeakerOn ? "🔊 Loa" : "🔈 Loa");
+        speakerBtn.getStyleClass().setAll(isSpeakerOn ? "dock-btn" : "dock-btn-danger");
         speakerBtn.setOnAction(e -> {
             isSpeakerOn = !isSpeakerOn;
             classroomVoice.setDeafened(!isSpeakerOn);
-            speakerBtn.setText(isSpeakerOn ? "🟢 Loa: BẬT" : "🔴 Loa: TẮT");
-            speakerBtn.setStyle(isSpeakerOn ?
-                "-fx-background-color: #16a34a; -fx-text-fill: white; -fx-font-weight: 800; -fx-background-radius: 8; -fx-cursor: hand;" :
-                "-fx-background-color: #dc2626; -fx-text-fill: white; -fx-font-weight: 800; -fx-background-radius: 8; -fx-cursor: hand;");
+            speakerBtn.setText(isSpeakerOn ? "🔊 Loa" : "🔈 Loa");
+            speakerBtn.getStyleClass().setAll(isSpeakerOn ? "dock-btn" : "dock-btn-danger");
         });
 
         // Nút Camera
-        Button camBtn = new Button(isCameraOn ? "🟢 Cam: BẬT" : "🔴 Cam: TẮT");
-        camBtn.setStyle(isCameraOn ?
-            "-fx-background-color: #16a34a; -fx-text-fill: white; -fx-font-weight: 800; -fx-background-radius: 8; -fx-cursor: hand;" :
-            "-fx-background-color: #dc2626; -fx-text-fill: white; -fx-font-weight: 800; -fx-background-radius: 8; -fx-cursor: hand;");
+        Button camBtn = new Button(isCameraOn ? "📹 Cam" : "📷 Cam");
+        camBtn.getStyleClass().setAll(isCameraOn ? "dock-btn" : "dock-btn-danger");
         camBtn.setOnAction(e -> {
             isCameraOn = !isCameraOn;
             if (isCameraOn) {
@@ -1092,6 +1082,8 @@ public final class StudyroomApp extends Application {
                 CameraEngine.getInstance().stop();
                 myCamView.setImage(null);
             }
+            camBtn.setText(isCameraOn ? "📹 Cam" : "📷 Cam");
+            camBtn.getStyleClass().setAll(isCameraOn ? "dock-btn" : "dock-btn-danger");
             courseRepo.heartbeatPresence(course.id(), user.username(), user.displayName(), isCameraOn, isMicOn, myVoiceIp, myVoicePort, isLocalSpeaking, myCameraPort);
             CourseRepository.Course fresh = courseRepo.getCourse(course.id());
             renderLiveClassroom(fresh, container, onGoToMaterials);
@@ -1196,13 +1188,13 @@ public final class StudyroomApp extends Application {
                 Region ogap = new Region();
                 HBox.setHgrow(ogap, Priority.ALWAYS);
 
-                Label speakTag = new Label("🔊 Đang nói ılı.l");
-                speakTag.setStyle("-fx-background-color: #15803d; -fx-text-fill: white; -fx-font-size: 10px; -fx-font-weight: 800; -fx-padding: 2 6; -fx-background-radius: 4; -fx-effect: dropshadow(gaussian, rgba(34,197,94,0.8), 6, 0.3, 0, 0);");
+                Label speakTag = new Label("ılı. Đang nói");
+                speakTag.setStyle("-fx-background-color: rgba(34, 197, 94, 0.18); -fx-text-fill: #4ade80; -fx-font-size: 10px; -fx-font-weight: 700; -fx-padding: 2 6; -fx-background-radius: 6; -fx-border-color: rgba(74, 222, 128, 0.35); -fx-border-radius: 6;");
                 speakTag.setVisible(false);
                 speakTag.setManaged(false);
 
                 Label camTag = new Label("📹");
-                camTag.setStyle("-fx-background-color: #22c55e; -fx-text-fill: white; -fx-font-size: 10px; -fx-padding: 2 5; -fx-background-radius: 4;");
+                camTag.setStyle("-fx-background-color: rgba(99, 102, 241, 0.2); -fx-text-fill: #a5b4fc; -fx-font-size: 10px; -fx-padding: 2 5; -fx-background-radius: 4;");
                 overlay.getChildren().addAll(meTag, ogap, speakTag, camTag);
 
                 camBox.getChildren().addAll(myCamView, overlay);
@@ -1210,11 +1202,11 @@ public final class StudyroomApp extends Application {
                 Runnable updateVisuals = () -> {
                     boolean speaking = isMicOn && isLocalSpeaking;
                     if (speaking) {
-                        camBox.setStyle("-fx-background-color: #0b0c10; -fx-background-radius: 12; -fx-border-color: #22c55e; -fx-border-width: 2.5; -fx-border-radius: 12; -fx-effect: dropshadow(gaussian, rgba(34,197,94,0.85), 14, 0.45, 0, 0);");
+                        camBox.setStyle("-fx-background-color: #0b0c10; -fx-background-radius: 12; -fx-border-color: rgba(74, 222, 128, 0.55); -fx-border-width: 1.5; -fx-border-radius: 12; -fx-effect: dropshadow(gaussian, rgba(74, 222, 128, 0.35), 8, 0.2, 0, 0);");
                         speakTag.setVisible(true);
                         speakTag.setManaged(true);
                     } else {
-                        camBox.setStyle("-fx-background-color: #0b0c10; -fx-background-radius: 12; -fx-border-color: #6366f1; -fx-border-width: 1.5; -fx-border-radius: 12;");
+                        camBox.setStyle("-fx-background-color: #0b0c10; -fx-background-radius: 12; -fx-border-color: #3b3d5b; -fx-border-width: 1.5; -fx-border-radius: 12; -fx-effect: null;");
                         speakTag.setVisible(false);
                         speakTag.setManaged(false);
                     }
@@ -1227,7 +1219,7 @@ public final class StudyroomApp extends Application {
                 tile.getStyleClass().add("video-tile");
                 tile.setPrefHeight(100);
                 tile.setMinHeight(100);
-                tile.setStyle("-fx-background-color: #222336; -fx-background-radius: 12; -fx-padding: 8 10; -fx-border-color: #6366f1; -fx-border-width: 1.5; -fx-border-radius: 12;");
+                tile.setStyle("-fx-background-color: #1c1d2b; -fx-background-radius: 12; -fx-padding: 8 10; -fx-border-color: #3b3d5b; -fx-border-width: 1.5; -fx-border-radius: 12;");
 
                 HBox top = new HBox();
                 top.setAlignment(Pos.CENTER_LEFT);
@@ -1257,16 +1249,16 @@ public final class StudyroomApp extends Application {
                 Runnable updateVisuals = () -> {
                     boolean isSpeaking = isMicOn && isLocalSpeaking;
                     if (isSpeaking) {
-                        tile.setStyle("-fx-background-color: #14281d; -fx-background-radius: 12; -fx-padding: 8 10; -fx-border-color: #22c55e; -fx-border-width: 2.5; -fx-border-radius: 12; -fx-effect: dropshadow(gaussian, rgba(34,197,94,0.85), 14, 0.45, 0, 0);");
-                        avatar.setStyle("-fx-background-color: #22c55e; -fx-background-radius: 14; -fx-alignment: center; -fx-effect: dropshadow(gaussian, rgba(34,197,94,0.9), 10, 0.5, 0, 0);");
-                        statusBadge.setText("🔊 Đang nói ılı.l");
-                        statusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #ffffff; -fx-font-weight: 800; -fx-background-color: #15803d; -fx-padding: 3 8; -fx-background-radius: 6; -fx-effect: dropshadow(gaussian, rgba(34,197,94,0.7), 6, 0.3, 0, 0);");
+                        tile.setStyle("-fx-background-color: #1c1d2b; -fx-background-radius: 12; -fx-padding: 8 10; -fx-border-color: rgba(74, 222, 128, 0.55); -fx-border-width: 1.5; -fx-border-radius: 12; -fx-effect: dropshadow(gaussian, rgba(74, 222, 128, 0.35), 8, 0.2, 0, 0);");
+                        avatar.setStyle("-fx-background-color: #6366f1; -fx-background-radius: 14; -fx-alignment: center;");
+                        statusBadge.setText("ılı. Đang nói");
+                        statusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #4ade80; -fx-font-weight: 700; -fx-background-color: rgba(34, 197, 94, 0.18); -fx-padding: 2 6; -fx-background-radius: 6; -fx-border-color: rgba(74, 222, 128, 0.35); -fx-border-radius: 6;");
                     } else {
-                        tile.setStyle("-fx-background-color: #222336; -fx-background-radius: 12; -fx-padding: 8 10; -fx-border-color: #6366f1; -fx-border-width: 1.5; -fx-border-radius: 12;");
+                        tile.setStyle("-fx-background-color: #1c1d2b; -fx-background-radius: 12; -fx-padding: 8 10; -fx-border-color: #3b3d5b; -fx-border-width: 1.5; -fx-border-radius: 12; -fx-effect: null;");
                         avatar.setStyle("-fx-background-color: #6366f1; -fx-background-radius: 14; -fx-alignment: center;");
                         if (isMicOn) {
                             statusBadge.setText("🎙️ Mic bật");
-                            statusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #94a3b8; -fx-font-weight: bold; -fx-background-color: #1e293b; -fx-padding: 2 6; -fx-background-radius: 4;");
+                            statusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #94a3b8; -fx-font-weight: bold; -fx-background-color: #25283d; -fx-padding: 2 6; -fx-background-radius: 4;");
                         } else {
                             statusBadge.setText("🔇 Mic tắt");
                             statusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #f87171; -fx-background-color: #381a20; -fx-padding: 2 6; -fx-background-radius: 4;");
@@ -1301,12 +1293,12 @@ public final class StudyroomApp extends Application {
         vNameTag.setStyle("-fx-background-color: rgba(0,0,0,0.65); -fx-text-fill: white; -fx-font-size: 11px; -fx-font-weight: bold; -fx-padding: 2 6; -fx-background-radius: 4;");
         Region vogap = new Region();
         HBox.setHgrow(vogap, Priority.ALWAYS);
-        Label vSpeakTag = new Label("🔊 Đang nói ılı.l");
-        vSpeakTag.setStyle("-fx-background-color: #15803d; -fx-text-fill: white; -fx-font-size: 10px; -fx-font-weight: 800; -fx-padding: 2 6; -fx-background-radius: 4; -fx-effect: dropshadow(gaussian, rgba(34,197,94,0.8), 6, 0.3, 0, 0);");
+        Label vSpeakTag = new Label("ılı. Đang nói");
+        vSpeakTag.setStyle("-fx-background-color: rgba(34, 197, 94, 0.18); -fx-text-fill: #4ade80; -fx-font-size: 10px; -fx-font-weight: 700; -fx-padding: 2 6; -fx-background-radius: 6; -fx-border-color: rgba(74, 222, 128, 0.35); -fx-border-radius: 6;");
         vSpeakTag.setVisible(false);
         vSpeakTag.setManaged(false);
         Label vCamTag = new Label("📹");
-        vCamTag.setStyle("-fx-background-color: #22c55e; -fx-text-fill: white; -fx-font-size: 10px; -fx-padding: 2 5; -fx-background-radius: 4;");
+        vCamTag.setStyle("-fx-background-color: rgba(99, 102, 241, 0.2); -fx-text-fill: #a5b4fc; -fx-font-size: 10px; -fx-padding: 2 5; -fx-background-radius: 4;");
         videoOverlay.getChildren().addAll(vNameTag, vogap, vSpeakTag, vCamTag);
         videoOverlay.setVisible(false);
 
@@ -1368,29 +1360,29 @@ public final class StudyroomApp extends Application {
 
             if (isSpeaking) {
                 if (hasVideo) {
-                    rootBox.setStyle("-fx-background-color: #0b0c10; -fx-background-radius: 12; -fx-border-color: #22c55e; -fx-border-width: 2.5; -fx-border-radius: 12; -fx-effect: dropshadow(gaussian, rgba(34,197,94,0.85), 14, 0.45, 0, 0);");
+                    rootBox.setStyle("-fx-background-color: #0b0c10; -fx-background-radius: 12; -fx-border-color: rgba(74, 222, 128, 0.55); -fx-border-width: 1.5; -fx-border-radius: 12; -fx-effect: dropshadow(gaussian, rgba(74, 222, 128, 0.35), 8, 0.2, 0, 0);");
                     vSpeakTag.setVisible(true);
                     vSpeakTag.setManaged(true);
                 } else {
-                    avatarBox.setStyle("-fx-background-color: #14281d; -fx-background-radius: 12; -fx-padding: 8 10; -fx-border-color: #22c55e; -fx-border-width: 2.5; -fx-border-radius: 12; -fx-effect: dropshadow(gaussian, rgba(34,197,94,0.85), 14, 0.45, 0, 0);");
-                    aAvatar.setStyle("-fx-background-color: #22c55e; -fx-background-radius: 14; -fx-alignment: center; -fx-effect: dropshadow(gaussian, rgba(34,197,94,0.9), 10, 0.5, 0, 0);");
-                    aStatusBadge.setText("🔊 Đang nói ılı.l");
-                    aStatusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #ffffff; -fx-font-weight: 800; -fx-background-color: #15803d; -fx-padding: 3 8; -fx-background-radius: 6; -fx-effect: dropshadow(gaussian, rgba(34,197,94,0.7), 6, 0.3, 0, 0);");
+                    avatarBox.setStyle("-fx-background-color: #1c1d2b; -fx-background-radius: 12; -fx-padding: 8 10; -fx-border-color: rgba(74, 222, 128, 0.55); -fx-border-width: 1.5; -fx-border-radius: 12; -fx-effect: dropshadow(gaussian, rgba(74, 222, 128, 0.35), 8, 0.2, 0, 0);");
+                    aAvatar.setStyle("-fx-background-color: #8b5cf6; -fx-background-radius: 14; -fx-alignment: center;");
+                    aStatusBadge.setText("ılı. Đang nói");
+                    aStatusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #4ade80; -fx-font-weight: 700; -fx-background-color: rgba(34, 197, 94, 0.18); -fx-padding: 2 6; -fx-background-radius: 6; -fx-border-color: rgba(74, 222, 128, 0.35); -fx-border-radius: 6;");
                 }
             } else {
                 if (hasVideo) {
-                    rootBox.setStyle("-fx-background-color: #0b0c10; -fx-background-radius: 12; -fx-border-color: #2e3048; -fx-border-width: 1.5; -fx-border-radius: 12;");
+                    rootBox.setStyle("-fx-background-color: #0b0c10; -fx-background-radius: 12; -fx-border-color: #2e3048; -fx-border-width: 1.5; -fx-border-radius: 12; -fx-effect: null;");
                     vSpeakTag.setVisible(false);
                     vSpeakTag.setManaged(false);
                 } else {
-                    avatarBox.setStyle("-fx-background-color: #1c1d2b; -fx-background-radius: 12; -fx-padding: 8 10; -fx-border-color: #2e3048; -fx-border-width: 1.5; -fx-border-radius: 12;");
+                    avatarBox.setStyle("-fx-background-color: #1c1d2b; -fx-background-radius: 12; -fx-padding: 8 10; -fx-border-color: #2e3048; -fx-border-width: 1.5; -fx-border-radius: 12; -fx-effect: null;");
                     aAvatar.setStyle("-fx-background-color: #8b5cf6; -fx-background-radius: 14; -fx-alignment: center;");
                     if (m.cameraOn()) {
                         aStatusBadge.setText("📹 Đang kết nối cam...");
                         aStatusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #60a5fa; -fx-font-weight: bold; -fx-background-color: #1e293b; -fx-padding: 2 6; -fx-background-radius: 4;");
                     } else if (m.micOn()) {
                         aStatusBadge.setText("🎙️ Mic bật");
-                        aStatusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #94a3b8; -fx-font-weight: bold; -fx-background-color: #1e293b; -fx-padding: 2 6; -fx-background-radius: 4;");
+                        aStatusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #94a3b8; -fx-font-weight: bold; -fx-background-color: #25283d; -fx-padding: 2 6; -fx-background-radius: 4;");
                     } else {
                         aStatusBadge.setText("🔇 Mic tắt");
                         aStatusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #f87171; -fx-background-color: #381a20; -fx-padding: 2 6; -fx-background-radius: 4;");

@@ -92,11 +92,11 @@
 .video-tile { -fx-background-color: #262638; -fx-background-radius: 12; -fx-min-width: 140; -fx-pref-width: 140; -fx-min-height: 88; -fx-max-height: 88; -fx-padding: 6 10; }
 .video-tile-active { -fx-border-color: -violet; -fx-border-width: 2; -fx-border-radius: 12; }
 
-.dock-bar { -fx-background-color: white; -fx-border-color: #f1f2f6 transparent transparent transparent; -fx-padding: 6 10; }
-.dock-btn { -fx-background-color: #f4f5f8; -fx-text-fill: #374151; -fx-background-radius: 19; -fx-min-height: 38; -fx-max-height: 38; -fx-padding: 0 10; -fx-font-size: 12px; -fx-font-weight: 700; -fx-cursor: hand; }
-.dock-btn:hover { -fx-background-color: #e5e7eb; }
-.dock-btn-danger { -fx-background-color: #ef4444; -fx-text-fill: white; -fx-background-radius: 19; -fx-min-height: 38; -fx-max-height: 38; -fx-padding: 0 10; -fx-font-size: 12px; -fx-font-weight: 700; -fx-cursor: hand; }
-.dock-btn-danger:hover { -fx-background-color: #dc2626; }
+.dock-bar { -fx-background-color: white; -fx-border-color: #e5e7eb transparent transparent transparent; -fx-padding: 6 12; }
+.dock-btn { -fx-background-color: #f3f4f6; -fx-text-fill: #374151; -fx-background-radius: 20; -fx-border-color: #e5e7eb; -fx-border-radius: 20; -fx-min-height: 38; -fx-max-height: 38; -fx-padding: 0 16; -fx-font-size: 13px; -fx-font-weight: 700; -fx-cursor: hand; }
+.dock-btn:hover { -fx-background-color: #e5e7eb; -fx-text-fill: #111827; -fx-border-color: #d1d5db; }
+.dock-btn-danger { -fx-background-color: #fee2e2; -fx-text-fill: #dc2626; -fx-background-radius: 20; -fx-border-color: #fca5a5; -fx-border-radius: 20; -fx-min-height: 38; -fx-max-height: 38; -fx-padding: 0 16; -fx-font-size: 13px; -fx-font-weight: 700; -fx-cursor: hand; }
+.dock-btn-danger:hover { -fx-background-color: #fecaca; -fx-border-color: #f87171; }
 
 .tab-pill { -fx-background-color: transparent; -fx-text-fill: -muted; -fx-font-weight: 700; -fx-font-size: 13px; -fx-background-radius: 20; -fx-padding: 8 16; -fx-cursor: hand; }
 .tab-pill:hover { -fx-background-color: -violet-soft; -fx-text-fill: -violet; }
