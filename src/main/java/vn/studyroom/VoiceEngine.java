@@ -6,6 +6,8 @@ import java.net.*;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Real-time VoIP Audio Engine using javax.sound.sampled and UDP datagram packets.
@@ -15,7 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class VoiceEngine implements AutoCloseable {
     private static final AudioFormat FORMAT = new AudioFormat(16000.0f, 16, 1, true, false);
     private static final int FRAME_SIZE = 640; // 20ms of 16kHz 16-bit mono audio
-    private static final double NOISE_THRESHOLD = 300.0; // Noise gate threshold to suppress fan/room hum
+    private static final double NOISE_THRESHOLD = 70.0; // Sensitive noise gate for clear speech pickup
 
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean muted = new AtomicBoolean(false);
@@ -26,7 +28,27 @@ public final class VoiceEngine implements AutoCloseable {
     private SourceDataLine speakerLine;
     private final Set<InetSocketAddress> peers = new CopyOnWriteArraySet<>();
 
+    private volatile Consumer<Boolean> localSpeakingCallback;
+    private volatile BiConsumer<String, Integer> remoteSpeakingCallback;
+    private volatile boolean localSpeakingState = false;
+    private volatile long lastLocalSpeechTime = 0;
+
+    public void setLocalSpeakingCallback(Consumer<Boolean> callback) {
+        this.localSpeakingCallback = callback;
+    }
+
+    public void setRemoteSpeakingCallback(BiConsumer<String, Integer> callback) {
+        this.remoteSpeakingCallback = callback;
+    }
+
+    public void clearPeers() {
+        peers.clear();
+    }
+
     public int start(int preferredPort) {
+        if (running.get() && udpSocket != null && !udpSocket.isClosed()) {
+            return udpSocket.getLocalPort();
+        }
         stop();
         running.set(true);
 
@@ -104,6 +126,11 @@ public final class VoiceEngine implements AutoCloseable {
 
     public void setMuted(boolean isMuted) {
         muted.set(isMuted);
+        if (isMuted && localSpeakingState) {
+            localSpeakingState = false;
+            Consumer<Boolean> cb = localSpeakingCallback;
+            if (cb != null) cb.accept(false);
+        }
     }
 
     public boolean isMuted() {
@@ -126,23 +153,39 @@ public final class VoiceEngine implements AutoCloseable {
 
         while (running.get() && micLine != null && micLine.isOpen()) {
             int read = micLine.read(buffer, 0, buffer.length);
-            if (read > 0 && !muted.get() && !peers.isEmpty() && udpSocket != null && !udpSocket.isClosed()) {
-                // Noise Gate: calculate RMS of the PCM frame
+            if (read > 0 && !muted.get()) {
+                // Calculate RMS level of voice
                 long sum = 0;
                 for (int i = 0; i < read - 1; i += 2) {
                     short val = (short) ((buffer[i + 1] << 8) | (buffer[i] & 0xFF));
                     sum += (long) val * val;
                 }
                 double rms = Math.sqrt((double) sum / (read / 2.0));
-                if (rms < NOISE_THRESHOLD) {
-                    continue; // Skip transmitting silence/fan noise
+
+                // Voice Activity Detection
+                long now = System.currentTimeMillis();
+                boolean speaking = rms > 90.0;
+                if (speaking) {
+                    lastLocalSpeechTime = now;
+                    if (!localSpeakingState) {
+                        localSpeakingState = true;
+                        Consumer<Boolean> cb = localSpeakingCallback;
+                        if (cb != null) cb.accept(true);
+                    }
+                } else if (localSpeakingState && (now - lastLocalSpeechTime > 350)) {
+                    localSpeakingState = false;
+                    Consumer<Boolean> cb = localSpeakingCallback;
+                    if (cb != null) cb.accept(false);
                 }
 
-                for (InetSocketAddress peer : peers) {
-                    try {
-                        DatagramPacket packet = new DatagramPacket(buffer, read, peer);
-                        udpSocket.send(packet);
-                    } catch (IOException ignored) { }
+                // If above noise threshold and peers exist, broadcast UDP packet
+                if (rms >= NOISE_THRESHOLD && !peers.isEmpty() && udpSocket != null && !udpSocket.isClosed()) {
+                    for (InetSocketAddress peer : peers) {
+                        try {
+                            DatagramPacket packet = new DatagramPacket(buffer, read, peer);
+                            udpSocket.send(packet);
+                        } catch (IOException ignored) { }
+                    }
                 }
             }
         }
@@ -154,8 +197,31 @@ public final class VoiceEngine implements AutoCloseable {
             try {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 udpSocket.receive(packet);
+
+                // Notify voice activity from peer
+                String senderIp = packet.getAddress().getHostAddress();
+                int senderPort = packet.getPort();
+                BiConsumer<String, Integer> rcb = remoteSpeakingCallback;
+                if (rcb != null) {
+                    rcb.accept(senderIp, senderPort);
+                }
+
                 if (!deafened.get() && speakerLine != null && speakerLine.isOpen()) {
-                    speakerLine.write(packet.getData(), packet.getOffset(), packet.getLength());
+                    byte[] data = packet.getData();
+                    int offset = packet.getOffset();
+                    int length = packet.getLength();
+
+                    // Apply 1.8x clean volume boost for clear audible voice
+                    for (int i = offset; i < offset + length - 1; i += 2) {
+                        short sample = (short) ((data[i + 1] << 8) | (data[i] & 0xFF));
+                        int boosted = (int) (sample * 1.8);
+                        if (boosted > 32767) boosted = 32767;
+                        else if (boosted < -32768) boosted = -32768;
+                        data[i] = (byte) (boosted & 0xFF);
+                        data[i + 1] = (byte) ((boosted >> 8) & 0xFF);
+                    }
+
+                    speakerLine.write(data, offset, length);
                 }
             } catch (IOException e) {
                 break;

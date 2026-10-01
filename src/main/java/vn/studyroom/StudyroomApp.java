@@ -19,6 +19,8 @@ import javafx.scene.input.ClipboardContent;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class StudyroomApp extends Application {
     private final Database database = new Database();
@@ -40,6 +42,12 @@ public final class StudyroomApp extends Application {
     private boolean isCameraOn = false;
     private boolean isMicOn = false;
     private boolean isSpeakerOn = true;
+    private final VoiceEngine classroomVoice = new VoiceEngine();
+    private int myVoicePort = 0;
+    private String myVoiceIp = "";
+    private volatile boolean isLocalSpeaking = false;
+    private final Map<String, Long> peerSpeakingLastTime = new ConcurrentHashMap<>();
+    private final Map<String, Runnable> tileSpeakingUpdateCallbacks = new ConcurrentHashMap<>();
     private Button playButton;
     private Scene scene;
 
@@ -615,6 +623,8 @@ public final class StudyroomApp extends Application {
         backBtn.getStyleClass().add("button");
         backBtn.setOnAction(e -> {
             CameraEngine.getInstance().stop();
+            classroomVoice.stop();
+            tileSpeakingUpdateCallbacks.clear();
             isCameraOn = false;
             ScreenShareEngine.getInstance().stop();
             if (activeCourseId != null) {
@@ -653,7 +663,7 @@ public final class StudyroomApp extends Application {
 
         topBar.getChildren().addAll(backBtn, title, codeTag, passTag, gap, shareBtn, moreBtn);
 
-        courseRepo.heartbeatPresence(courseId, user.username(), user.displayName(), isCameraOn, isMicOn);
+        courseRepo.heartbeatPresence(courseId, user.username(), user.displayName(), isCameraOn, isMicOn, myVoiceIp, myVoicePort, isLocalSpeaking);
 
         // Sub Tabs
         HBox tabs = new HBox(8);
@@ -682,6 +692,30 @@ public final class StudyroomApp extends Application {
 
                 if (currentTab[0] == 0) {
                     if (classroomSyncTimer != null) classroomSyncTimer.cancel();
+                    myVoiceIp = VoiceEngine.getLocalIp();
+                    myVoicePort = classroomVoice.start(5100);
+                    classroomVoice.setMuted(!isMicOn);
+                    classroomVoice.setDeafened(!isSpeakerOn);
+                    classroomVoice.setLocalSpeakingCallback(speaking -> {
+                        isLocalSpeaking = speaking;
+                        Platform.runLater(() -> {
+                            Runnable cb = tileSpeakingUpdateCallbacks.get(user.username());
+                            if (cb != null) cb.run();
+                        });
+                    });
+                    classroomVoice.setRemoteSpeakingCallback((senderIp, senderPort) -> {
+                        long now = System.currentTimeMillis();
+                        peerSpeakingLastTime.put(senderIp, now);
+                        peerSpeakingLastTime.put(senderIp + ":" + senderPort, now);
+                        Platform.runLater(() -> {
+                            tileSpeakingUpdateCallbacks.forEach((u, cb) -> {
+                                if (!u.equals(user.username())) {
+                                    cb.run();
+                                }
+                            });
+                        });
+                    });
+
                     classroomSyncTimer = new Timer(true);
                     classroomSyncTimer.scheduleAtFixedRate(new TimerTask() {
                         private boolean lastPresenting = course.isPresenting();
@@ -692,9 +726,16 @@ public final class StudyroomApp extends Application {
                         public void run() {
                             if (activeCourseId == null || currentTab[0] != 0) return;
                             try {
-                                courseRepo.heartbeatPresence(activeCourseId, user.username(), user.displayName(), isCameraOn, isMicOn);
+                                courseRepo.heartbeatPresence(activeCourseId, user.username(), user.displayName(), isCameraOn, isMicOn, myVoiceIp, myVoicePort, isLocalSpeaking);
                                 CourseRepository.Course fresh = courseRepo.getCourse(activeCourseId);
                                 List<CourseRepository.OnlineMember> freshMembers = courseRepo.getOnlineMembers(activeCourseId);
+
+                                for (CourseRepository.OnlineMember m : freshMembers) {
+                                    if (!m.username().equals(user.username()) && m.ip() != null && !m.ip().isBlank() && m.voicePort() > 0) {
+                                        classroomVoice.addPeer(m.ip(), m.voicePort());
+                                    }
+                                }
+
                                 if (fresh != null && (fresh.isPresenting() != lastPresenting || freshMembers.size() != lastMemberCount || isCameraOn != lastCam || isMicOn != lastMic)) {
                                     lastPresenting = fresh.isPresenting();
                                     lastMemberCount = freshMembers.size();
@@ -705,13 +746,19 @@ public final class StudyroomApp extends Application {
                                             renderLiveClassroom(fresh, workspaceArea, tabMaterials::fire);
                                         }
                                     });
+                                } else {
+                                    Platform.runLater(() -> {
+                                        tileSpeakingUpdateCallbacks.forEach((u, cb) -> cb.run());
+                                    });
                                 }
                             } catch (Exception ignored) { }
                         }
-                    }, 1500, 1500);
+                    }, 1200, 1200);
 
                     renderLiveClassroom(course, workspaceArea, tabMaterials::fire);
                 } else {
+                    classroomVoice.stop();
+                    tileSpeakingUpdateCallbacks.clear();
                     if (classroomSyncTimer != null) { classroomSyncTimer.cancel(); classroomSyncTimer = null; }
                     if (currentTab[0] == 1) {
                         renderMaterialsTab(course, workspaceArea);
@@ -993,9 +1040,12 @@ public final class StudyroomApp extends Application {
         micBtn.getStyleClass().setAll(isMicOn ? "dock-btn" : "dock-btn-danger");
         micBtn.setOnAction(e -> {
             isMicOn = !isMicOn;
+            classroomVoice.setMuted(!isMicOn);
             micBtn.setText(isMicOn ? "🎙️ Tắt mic" : "🎙️ Bật mic");
             micBtn.getStyleClass().setAll(isMicOn ? "dock-btn" : "dock-btn-danger");
-            courseRepo.heartbeatPresence(course.id(), user.username(), user.displayName(), isCameraOn, isMicOn);
+            courseRepo.heartbeatPresence(course.id(), user.username(), user.displayName(), isCameraOn, isMicOn, myVoiceIp, myVoicePort, isLocalSpeaking);
+            Runnable myCb = tileSpeakingUpdateCallbacks.get(user.username());
+            if (myCb != null) myCb.run();
         });
 
         // Nút Loa: khi đang tắt (isSpeakerOn == false) thì MÀU ĐỎ (dock-btn-danger)
@@ -1003,6 +1053,7 @@ public final class StudyroomApp extends Application {
         speakerBtn.getStyleClass().setAll(isSpeakerOn ? "dock-btn" : "dock-btn-danger");
         speakerBtn.setOnAction(e -> {
             isSpeakerOn = !isSpeakerOn;
+            classroomVoice.setDeafened(!isSpeakerOn);
             speakerBtn.setText(isSpeakerOn ? "🔊 Tắt loa" : "🔊 Bật loa");
             speakerBtn.getStyleClass().setAll(isSpeakerOn ? "dock-btn" : "dock-btn-danger");
         });
@@ -1018,7 +1069,7 @@ public final class StudyroomApp extends Application {
                 CameraEngine.getInstance().stop();
                 myCamView.setImage(null);
             }
-            courseRepo.heartbeatPresence(course.id(), user.username(), user.displayName(), isCameraOn, isMicOn);
+            courseRepo.heartbeatPresence(course.id(), user.username(), user.displayName(), isCameraOn, isMicOn, myVoiceIp, myVoicePort, isLocalSpeaking);
             CourseRepository.Course fresh = courseRepo.getCourse(course.id());
             renderLiveClassroom(fresh, container, onGoToMaterials);
         });
@@ -1046,6 +1097,8 @@ public final class StudyroomApp extends Application {
         leaveBtn.getStyleClass().setAll("dock-btn-danger");
         leaveBtn.setOnAction(e -> {
             CameraEngine.getInstance().stop();
+            classroomVoice.stop();
+            tileSpeakingUpdateCallbacks.clear();
             isCameraOn = false;
             ScreenShareEngine.getInstance().stop();
             courseRepo.leavePresence(course.id(), user.username());
@@ -1056,7 +1109,7 @@ public final class StudyroomApp extends Application {
 
         List<CourseRepository.OnlineMember> onlineMembers = courseRepo.getOnlineMembers(course.id());
         if (onlineMembers.stream().noneMatch(m -> m.username().equals(user.username()))) {
-            onlineMembers.add(0, new CourseRepository.OnlineMember(user.username(), user.displayName(), isCameraOn, isMicOn));
+            onlineMembers.add(0, new CourseRepository.OnlineMember(user.username(), user.displayName(), isCameraOn, isMicOn, myVoiceIp, myVoicePort, isLocalSpeaking));
         }
 
         Button membersBtn = new Button("👥 " + onlineMembers.size());
@@ -1101,21 +1154,9 @@ public final class StudyroomApp extends Application {
     }
 
     private Pane createMemberVideoTile(CourseRepository.OnlineMember m, boolean isMe, ImageView myCamView) {
-        VBox tile = new VBox(6);
-        tile.getStyleClass().add("video-tile");
-        tile.setPrefHeight(100);
-        tile.setMinHeight(100);
-
-        if (isMe) {
-            tile.setStyle("-fx-background-color: #222336; -fx-background-radius: 12; -fx-padding: 8 10; -fx-border-color: #6366f1; -fx-border-width: 1.5; -fx-border-radius: 12;");
-        } else {
-            tile.setStyle("-fx-background-color: #1c1d2b; -fx-background-radius: 12; -fx-padding: 8 10; -fx-border-color: -line; -fx-border-radius: 12;");
-        }
-
         if (isMe && isCameraOn) {
             // Live local camera preview!
             StackPane camBox = new StackPane();
-            camBox.setStyle("-fx-background-color: #0b0c10; -fx-background-radius: 12; -fx-border-color: #6366f1; -fx-border-width: 1.5; -fx-border-radius: 12;");
             camBox.setPrefHeight(100);
             camBox.setMinHeight(100);
 
@@ -1129,15 +1170,41 @@ public final class StudyroomApp extends Application {
             meTag.setStyle("-fx-background-color: rgba(0,0,0,0.65); -fx-text-fill: white; -fx-font-size: 11px; -fx-font-weight: bold; -fx-padding: 2 6; -fx-background-radius: 4;");
             Region ogap = new Region();
             HBox.setHgrow(ogap, Priority.ALWAYS);
+
+            Label speakTag = new Label("🔊 Đang nói ılı.l");
+            speakTag.setStyle("-fx-background-color: #15803d; -fx-text-fill: white; -fx-font-size: 10px; -fx-font-weight: 800; -fx-padding: 2 6; -fx-background-radius: 4; -fx-effect: dropshadow(gaussian, rgba(34,197,94,0.8), 6, 0.3, 0, 0);");
+            speakTag.setVisible(false);
+            speakTag.setManaged(false);
+
             Label camTag = new Label("📹");
             camTag.setStyle("-fx-background-color: #22c55e; -fx-text-fill: white; -fx-font-size: 10px; -fx-padding: 2 5; -fx-background-radius: 4;");
-            overlay.getChildren().addAll(meTag, ogap, camTag);
+            overlay.getChildren().addAll(meTag, ogap, speakTag, camTag);
 
             camBox.getChildren().addAll(myCamView, overlay);
+
+            Runnable updateVisuals = () -> {
+                boolean speaking = isMicOn && isLocalSpeaking;
+                if (speaking) {
+                    camBox.setStyle("-fx-background-color: #0b0c10; -fx-background-radius: 12; -fx-border-color: #22c55e; -fx-border-width: 2.5; -fx-border-radius: 12; -fx-effect: dropshadow(gaussian, rgba(34,197,94,0.85), 14, 0.45, 0, 0);");
+                    speakTag.setVisible(true);
+                    speakTag.setManaged(true);
+                } else {
+                    camBox.setStyle("-fx-background-color: #0b0c10; -fx-background-radius: 12; -fx-border-color: #6366f1; -fx-border-width: 1.5; -fx-border-radius: 12;");
+                    speakTag.setVisible(false);
+                    speakTag.setManaged(false);
+                }
+            };
+            tileSpeakingUpdateCallbacks.put(m.username(), updateVisuals);
+            updateVisuals.run();
             return camBox;
         }
 
         // Camera OFF or Other Member
+        VBox tile = new VBox(6);
+        tile.getStyleClass().add("video-tile");
+        tile.setPrefHeight(100);
+        tile.setMinHeight(100);
+
         HBox top = new HBox();
         top.setAlignment(Pos.CENTER_LEFT);
 
@@ -1147,24 +1214,12 @@ public final class StudyroomApp extends Application {
         avatar.getChildren().add(mark);
         avatar.setMinSize(28, 28);
         avatar.setMaxSize(28, 28);
-        avatar.setStyle("-fx-background-color: " + (isMe ? "#6366f1" : "#8b5cf6") + "; -fx-background-radius: 14; -fx-alignment: center;");
 
         Region tgap = new Region();
         HBox.setHgrow(tgap, Priority.ALWAYS);
 
-        if (m.cameraOn()) {
-            Label camBadge = new Label("📹 Cam bật");
-            camBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #60a5fa; -fx-font-weight: bold; -fx-background-color: #1e293b; -fx-padding: 2 6; -fx-background-radius: 4;");
-            top.getChildren().addAll(avatar, tgap, camBadge);
-        } else if (m.micOn()) {
-            Label speakBadge = new Label("● Đang nói");
-            speakBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #10b981; -fx-font-weight: bold; -fx-background-color: #064e3b; -fx-padding: 2 6; -fx-background-radius: 4;");
-            top.getChildren().addAll(avatar, tgap, speakBadge);
-        } else {
-            Label muteBadge = new Label("🔇 Tắt");
-            muteBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #9ca3af; -fx-background-color: #1e202e; -fx-padding: 2 6; -fx-background-radius: 4;");
-            top.getChildren().addAll(avatar, tgap, muteBadge);
-        }
+        Label statusBadge = new Label();
+        top.getChildren().addAll(avatar, tgap, statusBadge);
 
         Region mid = new Region();
         VBox.setVgrow(mid, Priority.ALWAYS);
@@ -1173,6 +1228,56 @@ public final class StudyroomApp extends Application {
         nameLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: 700; -fx-text-fill: white;");
 
         tile.getChildren().addAll(top, mid, nameLbl);
+
+        Runnable updateVisuals = () -> {
+            boolean isSpeaking;
+            boolean micActive;
+            boolean camActive;
+            if (isMe) {
+                micActive = isMicOn;
+                camActive = isCameraOn;
+                isSpeaking = isMicOn && isLocalSpeaking;
+            } else {
+                micActive = m.micOn();
+                camActive = m.cameraOn();
+                Long lastPacket = peerSpeakingLastTime.get(m.ip());
+                if (lastPacket == null && m.voicePort() > 0) {
+                    lastPacket = peerSpeakingLastTime.get(m.ip() + ":" + m.voicePort());
+                }
+                boolean recentPacket = lastPacket != null && (System.currentTimeMillis() - lastPacket < 500);
+                isSpeaking = micActive && (recentPacket || m.speaking());
+            }
+
+            if (isSpeaking) {
+                // Vibrant glowing green border & badge when speaking
+                tile.setStyle("-fx-background-color: #14281d; -fx-background-radius: 12; -fx-padding: 8 10; -fx-border-color: #22c55e; -fx-border-width: 2.5; -fx-border-radius: 12; -fx-effect: dropshadow(gaussian, rgba(34,197,94,0.85), 14, 0.45, 0, 0);");
+                avatar.setStyle("-fx-background-color: #22c55e; -fx-background-radius: 14; -fx-alignment: center; -fx-effect: dropshadow(gaussian, rgba(34,197,94,0.9), 10, 0.5, 0, 0);");
+                statusBadge.setText("🔊 Đang nói ılı.l");
+                statusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #ffffff; -fx-font-weight: 800; -fx-background-color: #15803d; -fx-padding: 3 8; -fx-background-radius: 6; -fx-effect: dropshadow(gaussian, rgba(34,197,94,0.7), 6, 0.3, 0, 0);");
+            } else {
+                if (isMe) {
+                    tile.setStyle("-fx-background-color: #222336; -fx-background-radius: 12; -fx-padding: 8 10; -fx-border-color: #6366f1; -fx-border-width: 1.5; -fx-border-radius: 12;");
+                    avatar.setStyle("-fx-background-color: #6366f1; -fx-background-radius: 14; -fx-alignment: center;");
+                } else {
+                    tile.setStyle("-fx-background-color: #1c1d2b; -fx-background-radius: 12; -fx-padding: 8 10; -fx-border-color: #2e3048; -fx-border-width: 1.5; -fx-border-radius: 12;");
+                    avatar.setStyle("-fx-background-color: #8b5cf6; -fx-background-radius: 14; -fx-alignment: center;");
+                }
+
+                if (camActive) {
+                    statusBadge.setText("📹 Cam bật");
+                    statusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #60a5fa; -fx-font-weight: bold; -fx-background-color: #1e293b; -fx-padding: 2 6; -fx-background-radius: 4;");
+                } else if (micActive) {
+                    statusBadge.setText("🎙️ Mic bật");
+                    statusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #94a3b8; -fx-font-weight: bold; -fx-background-color: #1e293b; -fx-padding: 2 6; -fx-background-radius: 4;");
+                } else {
+                    statusBadge.setText("🔇 Tắt");
+                    statusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #f87171; -fx-background-color: #381a20; -fx-padding: 2 6; -fx-background-radius: 4;");
+                }
+            }
+        };
+
+        tileSpeakingUpdateCallbacks.put(m.username(), updateVisuals);
+        updateVisuals.run();
         return tile;
     }
 
@@ -1586,6 +1691,7 @@ public final class StudyroomApp extends Application {
         // Disabled: do not spawn toast popup labels that cover buttons or stack up on UI
     }
     @Override public void stop() {
+        classroomVoice.stop();
         ScreenShareEngine.getInstance().stop();
         if (node != null) node.close();
         if (classroomSyncTimer != null) classroomSyncTimer.cancel();

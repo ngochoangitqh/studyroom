@@ -149,10 +149,16 @@ public final class Database {
                   display_name VARCHAR(100) NOT NULL,
                   camera_on BOOLEAN DEFAULT FALSE,
                   mic_on BOOLEAN DEFAULT FALSE,
+                  ip VARCHAR(64) DEFAULT '',
+                  voice_port INT DEFAULT 0,
+                  speaking BOOLEAN DEFAULT FALSE,
                   last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
                   PRIMARY KEY (course_id, username)
                 )
                 """);
+            statement.executeUpdate("ALTER TABLE course_online_presence ADD COLUMN IF NOT EXISTS ip VARCHAR(64) DEFAULT ''");
+            statement.executeUpdate("ALTER TABLE course_online_presence ADD COLUMN IF NOT EXISTS voice_port INT DEFAULT 0");
+            statement.executeUpdate("ALTER TABLE course_online_presence ADD COLUMN IF NOT EXISTS speaking BOOLEAN DEFAULT FALSE");
         } catch (SQLException exception) { throw new IllegalStateException("Không thể khởi tạo Studyroom database.", exception); }
     }
 }
