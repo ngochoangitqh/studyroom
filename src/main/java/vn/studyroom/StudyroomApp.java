@@ -70,32 +70,78 @@ public final class StudyroomApp extends Application {
 
     @Override public void start(Stage stage) {
         scene = new Scene(loginView(), 1280, 760);
-        scene.getStylesheets().add(getClass().getResource("/studyroom.css").toExternalForm());
+        scene.getStylesheets().addAll(
+            getClass().getResource("/tokens.css").toExternalForm(),
+            getClass().getResource("/studyroom.css").toExternalForm()
+        );
         stage.setTitle("Studyroom"); stage.setMinWidth(980); stage.setMinHeight(640); stage.setScene(scene); stage.show();
     }
 
     private Pane loginView() {
         StackPane root = new StackPane(); root.getStyleClass().add("auth-root");
-        VBox card = new VBox(18); card.getStyleClass().add("auth-card"); card.setMaxWidth(420);
+        VBox card = new VBox(16); card.getStyleClass().add("auth-card"); card.setMaxWidth(420);
         Label brand = new Label("◉  Studyroom"); brand.getStyleClass().add("brand");
         Label title = new Label("Học cùng nhau,\nkhông học một mình."); title.getStyleClass().add("auth-title");
         Label subtitle = new Label("Tạo một không gian chung để nhắn tin, họp, trình chiếu và nghe nhạc cùng nhóm."); subtitle.getStyleClass().add("muted"); subtitle.setWrapText(true);
         TextField name = field("Tên hiển thị", "Nguyễn Minh"); TextField username = field("Tên đăng nhập", "minh.study");
-        PasswordField password = new PasswordField(); password.setPromptText("Mật khẩu"); password.getStyleClass().add("input");
-        Label error = new Label(); error.getStyleClass().add("form-error"); error.setWrapText(true);
+        PasswordField password = new PasswordField(); password.setPromptText("Mật khẩu (ít nhất 6 ký tự)"); password.getStyleClass().add("input");
+        Label error = new Label(); error.setStyle("-fx-text-fill: #ef4444; -fx-font-size: 13px; -fx-font-weight: 600;"); error.setWrapText(true);
+
+        Button quickRegBtn = new Button("✨  Đăng ký tài khoản này ngay");
+        quickRegBtn.setStyle("-fx-background-color: #6366f1; -fx-text-fill: white; -fx-font-weight: 700; -fx-font-size: 13px; -fx-background-radius: 8; -fx-padding: 8 14; -fx-cursor: hand;");
+        quickRegBtn.setMaxWidth(Double.MAX_VALUE);
+        quickRegBtn.setManaged(false);
+        quickRegBtn.setVisible(false);
+
         Button submit = new Button("Đăng nhập"); submit.getStyleClass().addAll("button", "button-primary"); submit.setMaxWidth(Double.MAX_VALUE);
         Hyperlink switchMode = new Hyperlink("Chưa có tài khoản? Đăng ký");
         final boolean[] registering = {false};
-        Runnable refresh = () -> { name.setManaged(registering[0]); name.setVisible(registering[0]); submit.setText(registering[0] ? "Tạo tài khoản" : "Đăng nhập"); switchMode.setText(registering[0] ? "Đã có tài khoản? Đăng nhập" : "Chưa có tài khoản? Đăng ký"); error.setText(""); };
+
+        Runnable refresh = () -> {
+            name.setManaged(registering[0]);
+            name.setVisible(registering[0]);
+            submit.setText(registering[0] ? "Tạo tài khoản" : "Đăng nhập");
+            switchMode.setText(registering[0] ? "Đã có tài khoản? Đăng nhập" : "Chưa có tài khoản? Đăng ký");
+            error.setText("");
+            quickRegBtn.setManaged(false);
+            quickRegBtn.setVisible(false);
+        };
+
+        quickRegBtn.setOnAction(e -> {
+            registering[0] = true;
+            refresh.run();
+            if (name.getText().isBlank()) {
+                name.setText(username.getText());
+            }
+            submit.fire();
+        });
+
         switchMode.setOnAction(e -> { registering[0] = !registering[0]; refresh.run(); });
-        submit.setOnAction(e -> { try { user = registering[0] ? auth.register(name.getText(), username.getText(), password.getText()) : auth.login(username.getText(), password.getText()); openWorkspace(); } catch (Exception ex) { error.setText(ex.getMessage()); ex.printStackTrace(); } });
+
+        submit.setOnAction(e -> {
+            try {
+                user = registering[0] ? auth.register(name.getText(), username.getText(), password.getText()) : auth.login(username.getText(), password.getText());
+                openWorkspace();
+            } catch (Exception ex) {
+                error.setText("⚠️ " + ex.getMessage());
+                if (!registering[0] && username.getText().length() >= 3 && password.getText().length() >= 6) {
+                    quickRegBtn.setManaged(true);
+                    quickRegBtn.setVisible(true);
+                }
+            }
+        });
+
         name.setOnAction(e -> submit.fire());
         username.setOnAction(e -> submit.fire());
         password.setOnAction(e -> submit.fire());
-        name.textProperty().addListener((obs, oldV, newV) -> error.setText(""));
-        username.textProperty().addListener((obs, oldV, newV) -> error.setText(""));
-        password.textProperty().addListener((obs, oldV, newV) -> error.setText(""));
-        card.getChildren().addAll(brand, title, subtitle, name, username, password, error, submit, switchMode); refresh.run(); root.getChildren().add(card); return root;
+        name.textProperty().addListener((obs, oldV, newV) -> { error.setText(""); quickRegBtn.setManaged(false); quickRegBtn.setVisible(false); });
+        username.textProperty().addListener((obs, oldV, newV) -> { error.setText(""); quickRegBtn.setManaged(false); quickRegBtn.setVisible(false); });
+        password.textProperty().addListener((obs, oldV, newV) -> { error.setText(""); quickRegBtn.setManaged(false); quickRegBtn.setVisible(false); });
+
+        card.getChildren().addAll(brand, title, subtitle, name, username, password, error, quickRegBtn, submit, switchMode);
+        refresh.run();
+        root.getChildren().add(card);
+        return root;
     }
     private TextField field(String label, String prompt) { TextField f = new TextField(); f.setPromptText(label + " · " + prompt); f.getStyleClass().add("input"); return f; }
 
