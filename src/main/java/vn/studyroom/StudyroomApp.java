@@ -39,6 +39,7 @@ public final class StudyroomApp extends Application {
     private Timer classroomSyncTimer;
     private boolean isCameraOn = false;
     private boolean isMicOn = false;
+    private boolean isSpeakerOn = true;
     private Button playButton;
     private Scene scene;
 
@@ -980,24 +981,35 @@ public final class StudyroomApp extends Application {
         }
 
         // BOTTOM DOCK BAR
-        HBox dock = new HBox(12);
+        HBox dock = new HBox(8);
         dock.setAlignment(Pos.CENTER);
         dock.getStyleClass().add("dock-bar");
-        dock.setMinHeight(52);
-        dock.setPrefHeight(52);
-        dock.setMaxHeight(52);
+        dock.setMinHeight(50);
+        dock.setPrefHeight(50);
+        dock.setMaxHeight(50);
 
-        Button micBtn = new Button(isMicOn ? "🎙️ Bật mic" : "🔇 Tắt mic");
-        micBtn.getStyleClass().add(isMicOn ? "dock-btn-danger" : "dock-btn");
+        // Nút Mic: khi đang tắt (isMicOn == false) thì MÀU ĐỎ (dock-btn-danger)
+        Button micBtn = new Button(isMicOn ? "🎙️ Tắt mic" : "🎙️ Bật mic");
+        micBtn.getStyleClass().setAll(isMicOn ? "dock-btn" : "dock-btn-danger");
         micBtn.setOnAction(e -> {
             isMicOn = !isMicOn;
-            micBtn.setText(isMicOn ? "🎙️ Bật mic" : "🔇 Tắt mic");
-            micBtn.getStyleClass().setAll(isMicOn ? "dock-btn-danger" : "dock-btn");
+            micBtn.setText(isMicOn ? "🎙️ Tắt mic" : "🎙️ Bật mic");
+            micBtn.getStyleClass().setAll(isMicOn ? "dock-btn" : "dock-btn-danger");
             courseRepo.heartbeatPresence(course.id(), user.username(), user.displayName(), isCameraOn, isMicOn);
         });
 
-        Button camBtn = new Button(isCameraOn ? "📷 Tắt camera" : "📹 Bật camera");
-        camBtn.getStyleClass().add(isCameraOn ? "dock-btn-danger" : "dock-btn");
+        // Nút Loa: khi đang tắt (isSpeakerOn == false) thì MÀU ĐỎ (dock-btn-danger)
+        Button speakerBtn = new Button(isSpeakerOn ? "🔊 Tắt loa" : "🔊 Bật loa");
+        speakerBtn.getStyleClass().setAll(isSpeakerOn ? "dock-btn" : "dock-btn-danger");
+        speakerBtn.setOnAction(e -> {
+            isSpeakerOn = !isSpeakerOn;
+            speakerBtn.setText(isSpeakerOn ? "🔊 Tắt loa" : "🔊 Bật loa");
+            speakerBtn.getStyleClass().setAll(isSpeakerOn ? "dock-btn" : "dock-btn-danger");
+        });
+
+        // Nút Camera: khi đang tắt (isCameraOn == false) thì MÀU ĐỎ (dock-btn-danger)
+        Button camBtn = new Button(isCameraOn ? "📹 Tắt cam" : "📹 Bật cam");
+        camBtn.getStyleClass().setAll(isCameraOn ? "dock-btn" : "dock-btn-danger");
         camBtn.setOnAction(e -> {
             isCameraOn = !isCameraOn;
             if (isCameraOn) {
@@ -1011,8 +1023,8 @@ public final class StudyroomApp extends Application {
             renderLiveClassroom(fresh, container, onGoToMaterials);
         });
 
-        Button shareScreenBtn = new Button(course.isPresenting() && isHost ? "⏹️ Dừng chia sẻ" : "🖥️ Chia sẻ màn hình");
-        shareScreenBtn.getStyleClass().add(course.isPresenting() && isHost ? "dock-btn-danger" : "dock-btn");
+        Button shareScreenBtn = new Button(course.isPresenting() && isHost ? "⏹️ Dừng share" : "🖥️ Chia sẻ");
+        shareScreenBtn.getStyleClass().setAll(course.isPresenting() && isHost ? "dock-btn-danger" : "dock-btn");
         shareScreenBtn.setOnAction(e -> {
             if (isHost) {
                 if (course.isPresenting()) {
@@ -1030,8 +1042,8 @@ public final class StudyroomApp extends Application {
             }
         });
 
-        Button leaveBtn = new Button("🔴 Rời phòng");
-        leaveBtn.getStyleClass().addAll("dock-btn-danger");
+        Button leaveBtn = new Button("🚪 Rời phòng");
+        leaveBtn.getStyleClass().setAll("dock-btn-danger");
         leaveBtn.setOnAction(e -> {
             CameraEngine.getInstance().stop();
             isCameraOn = false;
@@ -1047,14 +1059,14 @@ public final class StudyroomApp extends Application {
             onlineMembers.add(0, new CourseRepository.OnlineMember(user.username(), user.displayName(), isCameraOn, isMicOn));
         }
 
-        Button membersBtn = new Button("👥 Thành viên (" + onlineMembers.size() + ")");
-        membersBtn.getStyleClass().add("dock-btn");
+        Button membersBtn = new Button("👥 " + onlineMembers.size());
+        membersBtn.getStyleClass().setAll("dock-btn");
 
-        Button chatBtn = new Button("💬 Trò chuyện");
-        chatBtn.getStyleClass().add("dock-btn");
+        Button chatBtn = new Button("💬 Chat");
+        chatBtn.getStyleClass().setAll("dock-btn");
         chatBtn.setOnAction(e -> showChat());
 
-        dock.getChildren().addAll(micBtn, camBtn, shareScreenBtn, leaveBtn, membersBtn, chatBtn);
+        dock.getChildren().addAll(micBtn, speakerBtn, camBtn, shareScreenBtn, leaveBtn, membersBtn, chatBtn);
 
         leftPane.getChildren().addAll(deck, dock);
 

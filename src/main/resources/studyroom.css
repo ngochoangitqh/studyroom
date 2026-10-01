@@ -92,10 +92,10 @@
 .video-tile { -fx-background-color: #262638; -fx-background-radius: 12; -fx-min-width: 140; -fx-pref-width: 140; -fx-min-height: 88; -fx-max-height: 88; -fx-padding: 6 10; }
 .video-tile-active { -fx-border-color: -violet; -fx-border-width: 2; -fx-border-radius: 12; }
 
-.dock-bar { -fx-background-color: white; -fx-border-color: #f1f2f6 transparent transparent transparent; -fx-padding: 12 24; }
-.dock-btn { -fx-background-color: #f4f5f8; -fx-text-fill: #374151; -fx-background-radius: 24; -fx-min-width: 44; -fx-min-height: 44; -fx-font-size: 16px; -fx-cursor: hand; }
+.dock-bar { -fx-background-color: white; -fx-border-color: #f1f2f6 transparent transparent transparent; -fx-padding: 6 10; }
+.dock-btn { -fx-background-color: #f4f5f8; -fx-text-fill: #374151; -fx-background-radius: 19; -fx-min-height: 38; -fx-max-height: 38; -fx-padding: 0 10; -fx-font-size: 12px; -fx-font-weight: 700; -fx-cursor: hand; }
 .dock-btn:hover { -fx-background-color: #e5e7eb; }
-.dock-btn-danger { -fx-background-color: #ef4444; -fx-text-fill: white; -fx-background-radius: 24; -fx-min-width: 44; -fx-min-height: 44; -fx-font-size: 16px; -fx-cursor: hand; }
+.dock-btn-danger { -fx-background-color: #ef4444; -fx-text-fill: white; -fx-background-radius: 19; -fx-min-height: 38; -fx-max-height: 38; -fx-padding: 0 10; -fx-font-size: 12px; -fx-font-weight: 700; -fx-cursor: hand; }
 .dock-btn-danger:hover { -fx-background-color: #dc2626; }
 
 .tab-pill { -fx-background-color: transparent; -fx-text-fill: -muted; -fx-font-weight: 700; -fx-font-size: 13px; -fx-background-radius: 20; -fx-padding: 8 16; -fx-cursor: hand; }
