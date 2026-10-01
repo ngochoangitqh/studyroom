@@ -94,6 +94,48 @@ public final class Database {
                 )
                 """);
             statement.executeUpdate("ALTER TABLE call_participant ADD COLUMN IF NOT EXISTS ip_address VARCHAR(64) DEFAULT '127.0.0.1'");
+            statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS study_course (
+                  course_id VARCHAR(64) PRIMARY KEY,
+                  course_code VARCHAR(32) UNIQUE NOT NULL,
+                  course_password VARCHAR(100) NOT NULL,
+                  title VARCHAR(150) NOT NULL,
+                  description VARCHAR(1000),
+                  owner_username VARCHAR(64) NOT NULL REFERENCES app_user(username),
+                  current_slide INT DEFAULT 4,
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+                )
+                """);
+            statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS course_member (
+                  course_id VARCHAR(64) NOT NULL REFERENCES study_course(course_id),
+                  username VARCHAR(64) NOT NULL REFERENCES app_user(username),
+                  role VARCHAR(20) DEFAULT 'STUDENT' NOT NULL,
+                  joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                  PRIMARY KEY (course_id, username)
+                )
+                """);
+            statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS course_material (
+                  material_id VARCHAR(64) PRIMARY KEY,
+                  course_id VARCHAR(64) NOT NULL REFERENCES study_course(course_id),
+                  title VARCHAR(200) NOT NULL,
+                  file_type VARCHAR(20) NOT NULL,
+                  file_size VARCHAR(50),
+                  uploaded_by VARCHAR(64),
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+                )
+                """);
+            statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS course_schedule (
+                  schedule_id VARCHAR(64) PRIMARY KEY,
+                  course_id VARCHAR(64) NOT NULL REFERENCES study_course(course_id),
+                  session_title VARCHAR(200) NOT NULL,
+                  session_time VARCHAR(100) NOT NULL,
+                  description VARCHAR(500),
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+                )
+                """);
         } catch (SQLException exception) { throw new IllegalStateException("Không thể khởi tạo Studyroom database.", exception); }
     }
 }

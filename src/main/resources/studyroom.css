@@ -78,3 +78,28 @@
 .custom-dialog .button-bar { -fx-padding: 8 20 16 20; }
 .dialog-title { -fx-font-size: 19px; -fx-font-weight: 800; -fx-text-fill: -ink; }
 .dialog-desc { -fx-font-size: 13px; -fx-text-fill: -muted; }
+
+/* Course & Shared Room Styles */
+.course-card { -fx-background-color: -surface; -fx-background-radius: 16; -fx-border-color: -line; -fx-border-radius: 16; -fx-padding: 20; -fx-min-width: 320; -fx-pref-width: 340; }
+.course-card:hover { -fx-border-color: -violet; -fx-effect: dropshadow(gaussian, rgba(124, 92, 255, 0.15), 10, 0, 0, 4); }
+.course-badge { -fx-background-color: -violet-soft; -fx-text-fill: -violet; -fx-font-weight: bold; -fx-font-size: 11px; -fx-padding: 4 10; -fx-background-radius: 8; }
+
+.slide-frame { -fx-background-color: white; -fx-background-radius: 16; -fx-border-color: #e5e7eb; -fx-border-radius: 16; -fx-padding: 32 40; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.04), 12, 0, 0, 2); }
+.slide-title { -fx-font-size: 32px; -fx-font-weight: 900; -fx-text-fill: #111827; }
+.slide-formula { -fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #1f2937; }
+.slide-note-box { -fx-background-color: #f5f3ff; -fx-background-radius: 12; -fx-padding: 16 20; -fx-border-color: #ddd6fe; -fx-border-radius: 12; }
+
+.video-tile { -fx-background-color: #262638; -fx-background-radius: 12; -fx-min-width: 140; -fx-pref-width: 140; -fx-min-height: 88; -fx-max-height: 88; -fx-padding: 6 10; }
+.video-tile-active { -fx-border-color: -violet; -fx-border-width: 2; -fx-border-radius: 12; }
+
+.dock-bar { -fx-background-color: white; -fx-border-color: #f1f2f6 transparent transparent transparent; -fx-padding: 12 24; }
+.dock-btn { -fx-background-color: #f4f5f8; -fx-text-fill: #374151; -fx-background-radius: 24; -fx-min-width: 44; -fx-min-height: 44; -fx-font-size: 16px; -fx-cursor: hand; }
+.dock-btn:hover { -fx-background-color: #e5e7eb; }
+.dock-btn-danger { -fx-background-color: #ef4444; -fx-text-fill: white; -fx-background-radius: 24; -fx-min-width: 44; -fx-min-height: 44; -fx-font-size: 16px; -fx-cursor: hand; }
+.dock-btn-danger:hover { -fx-background-color: #dc2626; }
+
+.tab-pill { -fx-background-color: transparent; -fx-text-fill: -muted; -fx-font-weight: 700; -fx-font-size: 13px; -fx-background-radius: 20; -fx-padding: 8 16; -fx-cursor: hand; }
+.tab-pill:hover { -fx-background-color: -violet-soft; -fx-text-fill: -violet; }
+.tab-pill-active { -fx-background-color: -violet; -fx-text-fill: white; -fx-font-weight: 800; -fx-font-size: 13px; -fx-background-radius: 20; -fx-padding: 8 16; }
+.tab-pill-active:hover { -fx-background-color: -violet; -fx-text-fill: white; }
+
