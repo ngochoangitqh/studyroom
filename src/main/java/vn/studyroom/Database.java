@@ -180,6 +180,8 @@ public final class Database {
             statement.executeUpdate("ALTER TABLE course_online_presence ADD COLUMN IF NOT EXISTS voice_port INT DEFAULT 0");
             statement.executeUpdate("ALTER TABLE course_online_presence ADD COLUMN IF NOT EXISTS speaking BOOLEAN DEFAULT FALSE");
             statement.executeUpdate("ALTER TABLE course_online_presence ADD COLUMN IF NOT EXISTS cam_port INT DEFAULT 0");
-        } catch (SQLException exception) { throw new IllegalStateException("Không thể khởi tạo Studyroom database.", exception); }
+        } catch (SQLException exception) {
+            System.err.println("⚠️ Không thể khởi tạo bảng Database PostgreSQL: " + exception.getMessage());
+        }
     }
 }
