@@ -366,9 +366,173 @@ public final class StudyroomApp extends Application {
         HBox.setHgrow(composer, Priority.ALWAYS);
         composerShell.getChildren().addAll(attach, composer, emoji, send);
         conversation.getChildren().addAll(head, scroll, composerShell);
-        showChatColumns(threads, conversation);
+        Node infoPanel = (roomId != null) ? buildChatInfoPanel(roomId, conversationName, group, targetUsername) : null;
+        showChatColumns(threads, conversation, infoPanel);
     }
-    private void showChatColumns(VBox threads, VBox conversation) { HBox columns = new HBox(threads, conversation); HBox.setHgrow(conversation, Priority.ALWAYS); VBox.setVgrow(columns, Priority.ALWAYS); content.getChildren().add(columns); }
+
+    private void showChatColumns(VBox threads, VBox conversation) { showChatColumns(threads, conversation, null); }
+    private void showChatColumns(VBox threads, VBox conversation, Node infoPanel) {
+        HBox columns = new HBox(threads, conversation);
+        if (infoPanel != null) {
+            columns.getChildren().add(infoPanel);
+        }
+        HBox.setHgrow(conversation, Priority.ALWAYS);
+        VBox.setVgrow(columns, Priority.ALWAYS);
+        content.getChildren().add(columns);
+    }
+
+    private VBox quickActionItem(String icon, String labelText, Runnable action) {
+        Button btn = new Button(icon);
+        btn.setStyle("-fx-background-color: #f3f4f6; -fx-background-radius: 20; -fx-min-width: 40; -fx-min-height: 40; -fx-font-size: 16px; -fx-cursor: hand;");
+        btn.setOnAction(e -> action.run());
+        Label lbl = new Label(labelText);
+        lbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #6b7280; -fx-font-weight: 600;");
+        VBox box = new VBox(4, btn, lbl);
+        box.setAlignment(Pos.CENTER);
+        return box;
+    }
+
+    private Node buildChatInfoPanel(String roomId, String conversationName, boolean group, String targetUsername) {
+        VBox container = new VBox(16);
+        container.setPrefWidth(300);
+        container.setMinWidth(280);
+        container.setMaxWidth(320);
+        container.setStyle("-fx-background-color: #ffffff; -fx-border-color: #e5e7eb; -fx-border-width: 0 0 0 1; -fx-padding: 24 16;");
+        container.setAlignment(Pos.TOP_CENTER);
+
+        // 1. Header
+        StackPane avatarPane = group ? groupAvatar(roomId, conversationName, "avatar-group", 80)
+                                      : userAvatar(targetUsername != null ? targetUsername : conversationName, initials(conversationName), "avatar-person", 80);
+        if (group) {
+            avatarPane.setCursor(javafx.scene.Cursor.HAND);
+            Tooltip.install(avatarPane, new Tooltip("Nhấp để đổi ảnh đại diện nhóm"));
+            avatarPane.setOnMouseClicked(e -> showChangeGroupAvatarDialog(roomId, conversationName));
+        }
+
+        Label nameLbl = new Label(conversationName);
+        nameLbl.setStyle("-fx-font-size: 17px; -fx-font-weight: 800; -fx-text-fill: #111827; -fx-text-alignment: center;");
+        nameLbl.setWrapText(true);
+
+        List<String> memberNames = group ? chatRepository.membersOf(roomId) : List.of();
+        String metaText = group ? (memberNames.size() + " thành viên") : "Đang hoạt động";
+        Label metaLbl = new Label(metaText);
+        metaLbl.setStyle("-fx-font-size: 12px; -fx-text-fill: #6b7280;");
+
+        HBox quickActions = new HBox(20);
+        quickActions.setAlignment(Pos.CENTER);
+        VBox muteBtn = quickActionItem("🔔", "Tắt thông báo", () -> toast("Đã chuyển đổi thông báo cuộc trò chuyện"));
+        VBox searchBtn = quickActionItem("⌕", "Tìm kiếm", () -> toast("Tìm kiếm trong trò chuyện"));
+        quickActions.getChildren().addAll(muteBtn, searchBtn);
+
+        VBox headerBox = new VBox(10, avatarPane, nameLbl, metaLbl, spacer(4), quickActions);
+        headerBox.setAlignment(Pos.CENTER);
+
+        // 2. Sections
+        VBox customSection = createInfoSection("Tùy chỉnh đoạn chat", List.of(
+            group ? createSectionButton("🖼️  Đổi ảnh đại diện nhóm", e -> showChangeGroupAvatarDialog(roomId, conversationName)) : null,
+            group ? createSectionButton("✏️  Đổi tên nhóm", e -> showRenameGroupDialog(roomId, conversationName)) : null
+        ));
+
+        VBox membersSection = null;
+        if (group) {
+            VBox memberItems = new VBox(8);
+            for (String mName : memberNames) {
+                HBox mRow = new HBox(8);
+                mRow.setAlignment(Pos.CENTER_LEFT);
+                StackPane mAvt = userAvatar(mName, initials(mName), "avatar-person", 28);
+                Label mLbl = new Label(mName);
+                mLbl.setStyle("-fx-font-size: 13px; -fx-text-fill: #374151; -fx-font-weight: 600;");
+                mRow.getChildren().addAll(mAvt, mLbl);
+                memberItems.getChildren().add(mRow);
+            }
+            Button addMemBtn = createSectionButton("＋  Thêm thành viên", e -> showAddMemberDialog(roomId, conversationName));
+            memberItems.getChildren().add(addMemBtn);
+
+            membersSection = createInfoSectionContent("Thành viên trong đoạn chat (" + memberNames.size() + ")", memberItems);
+        }
+
+        VBox privacySection = createInfoSection("Quyền riêng tư & hỗ trợ", List.of(
+            group ? createSectionButton("🚪  Rời khỏi nhóm", e -> leaveGroup(roomId, conversationName)) : null
+        ));
+
+        container.getChildren().add(headerBox);
+        container.getChildren().add(new Separator());
+        if (customSection != null) container.getChildren().add(customSection);
+        if (membersSection != null) container.getChildren().add(membersSection);
+        if (privacySection != null) container.getChildren().add(privacySection);
+
+        ScrollPane scroll = new ScrollPane(container);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
+        return scroll;
+    }
+
+    private VBox createInfoSection(String title, List<Button> buttons) {
+        VBox box = new VBox(6);
+        Label titleLbl = new Label(title);
+        titleLbl.setStyle("-fx-font-size: 13px; -fx-font-weight: 700; -fx-text-fill: #374151;");
+        box.getChildren().add(titleLbl);
+
+        boolean hasAny = false;
+        for (Button btn : buttons) {
+            if (btn != null) {
+                box.getChildren().add(btn);
+                hasAny = true;
+            }
+        }
+        return hasAny ? box : null;
+    }
+
+    private VBox createInfoSectionContent(String title, Node content) {
+        VBox box = new VBox(8);
+        Label titleLbl = new Label(title);
+        titleLbl.setStyle("-fx-font-size: 13px; -fx-font-weight: 700; -fx-text-fill: #374151;");
+        box.getChildren().addAll(titleLbl, content);
+        return box;
+    }
+
+    private Button createSectionButton(String text, javafx.event.EventHandler<javafx.event.ActionEvent> handler) {
+        Button btn = new Button(text);
+        btn.setStyle("-fx-background-color: transparent; -fx-text-fill: #1f2937; -fx-font-size: 13px; -fx-alignment: CENTER_LEFT; -fx-cursor: hand; -fx-padding: 6 8;");
+        btn.setMaxWidth(Double.MAX_VALUE);
+        btn.setOnAction(handler);
+        btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: #f3f4f6; -fx-text-fill: #1f2937; -fx-font-size: 13px; -fx-alignment: CENTER_LEFT; -fx-cursor: hand; -fx-padding: 6 8; -fx-background-radius: 6;"));
+        btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: transparent; -fx-text-fill: #1f2937; -fx-font-size: 13px; -fx-alignment: CENTER_LEFT; -fx-cursor: hand; -fx-padding: 6 8;"));
+        return btn;
+    }
+
+    private void showRenameGroupDialog(String roomId, String currentName) {
+        TextInputDialog dialog = new TextInputDialog(currentName);
+        dialog.setTitle("Đổi tên nhóm");
+        dialog.setHeaderText("Nhập tên mới cho nhóm " + currentName);
+        dialog.setContentText("Tên nhóm mới:");
+        dialog.showAndWait().ifPresent(newName -> {
+            if (!newName.isBlank()) {
+                try (Connection c = database.connect();
+                     PreparedStatement q = c.prepareStatement("UPDATE study_group SET room_name = ? WHERE room_id = ?")) {
+                    q.setString(1, newName.trim());
+                    q.setString(2, roomId);
+                    q.executeUpdate();
+                    showChat(roomId, newName.trim(), true);
+                } catch (SQLException ex) {
+                    toast("Không thể đổi tên nhóm: " + ex.getMessage());
+                }
+            }
+        });
+    }
+
+    private void leaveGroup(String roomId, String roomName) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "Bạn có chắc muốn rời khỏi nhóm " + roomName + "?", ButtonType.YES, ButtonType.NO);
+        alert.setTitle("Xác nhận rời nhóm");
+        alert.showAndWait().ifPresent(btn -> {
+            if (btn == ButtonType.YES) {
+                chatRepository.removeMember(roomId, user.username());
+                showChat();
+            }
+        });
+    }
+
     private Button chip(String text, boolean selected) { Button chip = new Button(text); chip.getStyleClass().addAll("filter-chip", selected ? "filter-chip-active" : ""); return chip; }
     private HBox thread(ChatRepository.Room room, boolean active) { return thread(room.id(), room.name(), "avatar-group", "Mở nhóm ", active, true, null); }
     private HBox thread(User person, boolean active) { return thread(directRoomId(user.username(), person.username()), person.displayName(), "avatar-person", "Nhắn tin với ", active, false, person.username()); }
