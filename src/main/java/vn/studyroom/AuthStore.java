@@ -61,37 +61,57 @@ public final class AuthStore {
         String rawKey = username.trim();
         String lowerKey = rawKey.toLowerCase();
         try (Connection c = database.connect();
-             PreparedStatement q = c.prepareStatement("UPDATE app_user SET avatar = ? WHERE username = ? OR LOWER(username) = ?")) {
+             PreparedStatement q = c.prepareStatement("UPDATE app_user SET avatar = ? WHERE username = ? OR LOWER(username) = ? RETURNING display_name")) {
             q.setBytes(1, avatarData);
             q.setString(2, rawKey);
             q.setString(3, lowerKey);
-            q.executeUpdate();
+            ResultSet rs = q.executeQuery();
+            String displayName = null;
+            if (rs.next()) {
+                displayName = rs.getString(1);
+            }
             javafx.scene.image.Image img = new javafx.scene.image.Image(new java.io.ByteArrayInputStream(avatarData));
             userAvatarCache.put(rawKey, img);
             userAvatarCache.put(lowerKey, img);
+            if (displayName != null && !displayName.isBlank()) {
+                userAvatarCache.put(displayName.trim(), img);
+                userAvatarCache.put(displayName.trim().toLowerCase(), img);
+            }
         } catch (SQLException e) {
             throw new IllegalStateException("Không thể lưu ảnh đại diện.", e);
         }
     }
 
-    public javafx.scene.image.Image getUserAvatarImage(String username) {
-        if (username == null || username.isBlank()) return null;
-        String rawKey = username.trim();
+    public javafx.scene.image.Image getUserAvatarImage(String identifier) {
+        if (identifier == null || identifier.isBlank()) return null;
+        String rawKey = identifier.trim();
         String lowerKey = rawKey.toLowerCase();
         if (userAvatarCache.containsKey(rawKey)) return userAvatarCache.get(rawKey);
         if (userAvatarCache.containsKey(lowerKey)) return userAvatarCache.get(lowerKey);
 
         try (Connection c = database.connect();
-             PreparedStatement q = c.prepareStatement("SELECT avatar FROM app_user WHERE username = ? OR LOWER(username) = ?")) {
+             PreparedStatement q = c.prepareStatement("SELECT avatar, username, display_name FROM app_user WHERE username = ? OR LOWER(username) = ? OR display_name = ? OR LOWER(display_name) = ?")) {
             q.setString(1, rawKey);
             q.setString(2, lowerKey);
+            q.setString(3, rawKey);
+            q.setString(4, lowerKey);
             ResultSet rs = q.executeQuery();
             if (rs.next()) {
                 byte[] data = rs.getBytes(1);
+                String uName = rs.getString(2);
+                String dName = rs.getString(3);
                 if (data != null && data.length > 0) {
                     javafx.scene.image.Image img = new javafx.scene.image.Image(new java.io.ByteArrayInputStream(data));
                     userAvatarCache.put(rawKey, img);
                     userAvatarCache.put(lowerKey, img);
+                    if (uName != null && !uName.isBlank()) {
+                        userAvatarCache.put(uName.trim(), img);
+                        userAvatarCache.put(uName.trim().toLowerCase(), img);
+                    }
+                    if (dName != null && !dName.isBlank()) {
+                        userAvatarCache.put(dName.trim(), img);
+                        userAvatarCache.put(dName.trim().toLowerCase(), img);
+                    }
                     return img;
                 }
             }

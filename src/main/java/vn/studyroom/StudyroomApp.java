@@ -154,6 +154,7 @@ public final class StudyroomApp extends Application {
 
     private void showChat() { showChat(null, "", false); }
     private void showChat(String roomId, String conversationName, boolean group) {
+        refreshSidebar();
         selectedRoomId = roomId;
         content.getChildren().clear(); content.getStyleClass().setAll("chat-workspace"); content.setPadding(Insets.EMPTY); content.setSpacing(0);
         VBox threads = new VBox(8); threads.getStyleClass().add("thread-list"); threads.setPrefWidth(380); threads.setMinWidth(320);
@@ -3164,8 +3165,13 @@ public final class StudyroomApp extends Application {
         dialog.show();
     }
     private void showMusic() { base("Đang phát cùng phòng “Học đêm khuya”", "5 người đang nghe"); HBox body = new HBox(24); VBox.setVgrow(body, Priority.ALWAYS); VBox player = new VBox(18); player.getStyleClass().add("player"); HBox.setHgrow(player, Priority.ALWAYS); Label art = new Label("LOFI\nSTUDY\nBEATS"); art.getStyleClass().add("album-art"); Label song = new Label("Lofi Study Beats"); song.getStyleClass().add("now-playing"); Label artist = new Label("Chill Collective"); artist.getStyleClass().add("muted"); ProgressBar progress = new ProgressBar(.34); progress.setMaxWidth(Double.MAX_VALUE); playButton = new Button("▶"); playButton.getStyleClass().addAll("play", "button-primary"); playButton.setOnAction(e -> { boolean paused = "▶".equals(playButton.getText()); playButton.setText(paused ? "Ⅱ" : "▶"); toast(paused ? "Đang phát đồng bộ trong phòng." : "Đã tạm dừng cho cả phòng."); }); HBox controls = new HBox(18, new Button("↶"), playButton, new Button("↷")); controls.setAlignment(Pos.CENTER); player.setAlignment(Pos.CENTER); player.getChildren().addAll(art, song, artist, progress, controls, new Label("Đang nghe cùng: Lan · Minh · Bạn +2")); VBox queue = new VBox(10, new Label("Danh sách phát tiếp theo")); queue.getStyleClass().add("queue"); for (String track : List.of("Rainy Mood · 3:24", "Coffee Jazz · 4:12", "Night Piano · 5:28", "Morning Vibes · 3:17", "Deep Focus · 4:01")) { Button t = new Button(track); t.getStyleClass().add("track"); t.setOnAction(e -> toast("Đã chọn " + ((Button)e.getSource()).getText())); queue.getChildren().add(t); } body.getChildren().addAll(player, queue); content.getChildren().add(body); }
+    private void refreshSidebar() {
+        shell.setLeft(sidebar());
+    }
+
     private void showProfile() {
         base("Hồ sơ cá nhân", "Quản lý thông tin và hình ảnh đại diện của bạn");
+        refreshSidebar();
         VBox card = new VBox(16);
         card.setAlignment(Pos.CENTER);
         card.setStyle("-fx-background-color: white; -fx-background-radius: 16; -fx-padding: 32 40; -fx-border-color: #e5e7eb; -fx-border-radius: 16; -fx-max-width: 480; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 8, 0, 0, 2);");
@@ -3232,8 +3238,8 @@ public final class StudyroomApp extends Application {
             showAvatarCropDialog(file, "Căn chỉnh ảnh đại diện cá nhân", croppedData -> {
                 try {
                     auth.saveUserAvatar(user.username(), croppedData);
+                    refreshSidebar();
                     showProfile();
-                    showChat();
                 } catch (Exception ex) {
                     showErrorAlert("Lỗi cập nhật ảnh", "Không thể lưu ảnh đại diện: " + ex.getMessage());
                 }
