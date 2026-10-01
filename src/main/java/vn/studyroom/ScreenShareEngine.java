@@ -34,10 +34,17 @@ public final class ScreenShareEngine {
     private ServerSocket serverSocket;
     private final List<Socket> clientSockets = new CopyOnWriteArrayList<>();
     private Socket receiverSocket;
+    private volatile Consumer<Image> localCallback;
+    private volatile Consumer<Image> clientCallback;
 
     private ScreenShareEngine() { }
 
     public synchronized void startHost(int port, Consumer<Image> localFrameCallback) {
+        this.localCallback = localFrameCallback;
+        if (running.get() && isHost.get()) {
+            return; // Already running as host, callback updated
+        }
+
         stop();
         running.set(true);
         isHost.set(true);
@@ -90,9 +97,10 @@ public final class ScreenShareEngine {
                     byte[] jpegData = baos.toByteArray();
 
                     // Host local preview
-                    if (localFrameCallback != null) {
+                    Consumer<Image> cb = localCallback;
+                    if (cb != null) {
                         Image fxImg = new Image(new ByteArrayInputStream(jpegData));
-                        Platform.runLater(() -> localFrameCallback.accept(fxImg));
+                        Platform.runLater(() -> cb.accept(fxImg));
                     }
 
                     // Send to student peers
@@ -125,6 +133,11 @@ public final class ScreenShareEngine {
     }
 
     public synchronized void startClient(String hostIp, int port, Consumer<Image> frameCallback) {
+        this.clientCallback = frameCallback;
+        if (running.get() && !isHost.get()) {
+            return; // Already running as client, callback updated
+        }
+
         stop();
         running.set(true);
         isHost.set(false);
@@ -145,8 +158,11 @@ public final class ScreenShareEngine {
                         byte[] data = new byte[len];
                         dis.readFully(data);
 
-                        Image fxImg = new Image(new ByteArrayInputStream(data));
-                        Platform.runLater(() -> frameCallback.accept(fxImg));
+                        Consumer<Image> cb = clientCallback;
+                        if (cb != null) {
+                            Image fxImg = new Image(new ByteArrayInputStream(data));
+                            Platform.runLater(() -> cb.accept(fxImg));
+                        }
                     }
                 } catch (Exception e) {
                     try { Thread.sleep(1200); } catch (InterruptedException ignored) { break; }

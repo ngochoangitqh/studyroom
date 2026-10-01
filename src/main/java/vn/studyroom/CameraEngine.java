@@ -26,10 +26,12 @@ public final class CameraEngine {
 
     private Webcam webcam;
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private volatile Consumer<Image> currentCallback;
 
     private CameraEngine() { }
 
     public synchronized void start(Consumer<Image> frameCallback) {
+        this.currentCallback = frameCallback;
         if (running.get()) return;
         running.set(true);
 
@@ -47,7 +49,10 @@ public final class CameraEngine {
                             ByteArrayOutputStream baos = new ByteArrayOutputStream();
                             ImageIO.write(bi, "jpg", baos);
                             Image fxImg = new Image(new ByteArrayInputStream(baos.toByteArray()));
-                            Platform.runLater(() -> frameCallback.accept(fxImg));
+                            Consumer<Image> cb = currentCallback;
+                            if (cb != null) {
+                                Platform.runLater(() -> cb.accept(fxImg));
+                            }
                         }
                         Thread.sleep(66); // ~15 FPS
                     }

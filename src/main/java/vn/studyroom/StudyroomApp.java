@@ -667,6 +667,7 @@ public final class StudyroomApp extends Application {
 
         VBox workspaceArea = new VBox();
         VBox.setVgrow(workspaceArea, Priority.ALWAYS);
+        workspaceArea.setMinHeight(0);
 
         final int[] currentTab = {0};
 
@@ -737,17 +738,22 @@ public final class StudyroomApp extends Application {
         container.getChildren().clear();
         boolean isHost = course.ownerUsername().equalsIgnoreCase(user.username());
 
-        HBox body = new HBox(16);
+        HBox body = new HBox(14);
         VBox.setVgrow(body, Priority.ALWAYS);
+        body.setMinHeight(0);
 
         // LEFT: Slide Frame & Dock Bar
-        VBox leftPane = new VBox(12);
+        VBox leftPane = new VBox(10);
         HBox.setHgrow(leftPane, Priority.ALWAYS);
         VBox.setVgrow(leftPane, Priority.ALWAYS);
+        leftPane.setMinHeight(0);
+        leftPane.setMinWidth(0);
 
-        VBox deck = new VBox(12);
+        VBox deck = new VBox(10);
         deck.getStyleClass().add("slide-frame");
         VBox.setVgrow(deck, Priority.ALWAYS);
+        deck.setMinHeight(0);
+        deck.setMinWidth(0);
 
         ImageView screenView = new ImageView();
         screenView.setPreserveRatio(true);
@@ -755,13 +761,9 @@ public final class StudyroomApp extends Application {
 
         if (course.isPresenting()) {
             if (isHost) {
-                ScreenShareEngine.getInstance().startHost(course.screenPort(), img -> {
-                    screenView.setImage(img);
-                });
+                ScreenShareEngine.getInstance().startHost(course.screenPort(), screenView::setImage);
             } else {
-                ScreenShareEngine.getInstance().startClient(course.hostIp(), course.screenPort(), img -> {
-                    screenView.setImage(img);
-                });
+                ScreenShareEngine.getInstance().startClient(course.hostIp(), course.screenPort(), screenView::setImage);
             }
         } else {
             ScreenShareEngine.getInstance().stop();
@@ -843,22 +845,23 @@ public final class StudyroomApp extends Application {
             // LIVE SCREEN SHARING ACTIVE
             HBox streamHeader = new HBox(14);
             streamHeader.setAlignment(Pos.CENTER_LEFT);
+            streamHeader.setMinHeight(30);
 
             Label liveBadge = new Label("🔴 ĐANG CHIA SẺ MÀN HÌNH");
             liveBadge.setStyle("-fx-background-color: #fee2e2; -fx-text-fill: #dc2626; -fx-font-weight: 800; -fx-font-size: 11px; -fx-padding: 4 8; -fx-background-radius: 6;");
 
             Label hostInfo = new Label(isHost ? "Màn hình của bạn đang phát trực tiếp" : "Màn hình trực tiếp của Chủ phòng @" + course.ownerUsername());
-            hostInfo.setStyle("-fx-font-weight: 800; -fx-font-size: 14px; -fx-text-fill: #374151;");
+            hostInfo.setStyle("-fx-font-weight: 800; -fx-font-size: 13px; -fx-text-fill: #374151;");
 
             Region hgap = new Region();
             HBox.setHgrow(hgap, Priority.ALWAYS);
 
             Label resBadge = new Label("1280 × 720 · 15 FPS · HD");
-            resBadge.setStyle("-fx-font-size: 12px; -fx-text-fill: #6b7280;");
+            resBadge.setStyle("-fx-font-size: 11px; -fx-text-fill: #6b7280;");
 
             Button fullscreenBtn = new Button("⛶ Toàn màn hình");
             fullscreenBtn.getStyleClass().add("button");
-            fullscreenBtn.setStyle("-fx-font-weight: bold; -fx-padding: 4 10;");
+            fullscreenBtn.setStyle("-fx-font-weight: bold; -fx-padding: 3 8; -fx-font-size: 12px;");
             fullscreenBtn.setOnAction(e -> {
                 Stage fullStage = new Stage();
                 fullStage.setTitle("Màn hình trình chiếu · " + course.title());
@@ -877,29 +880,50 @@ public final class StudyroomApp extends Application {
 
             streamHeader.getChildren().addAll(liveBadge, hostInfo, hgap, resBadge, fullscreenBtn);
 
-            // Screen View Frame
-            StackPane screenBox = new StackPane();
-            screenBox.setStyle("-fx-background-color: #0c0d14; -fx-background-radius: 12; -fx-padding: 8; -fx-alignment: center;");
+            Label loadingNotice = new Label(isHost ? "Đang phát trực tiếp màn hình máy tính của bạn..." : "Đang nhận luồng hình ảnh màn hình bài giảng...");
+            loadingNotice.setStyle("-fx-text-fill: #9ca3af; -fx-font-size: 13px;");
+
+            // Responsive Screen Box: Constrained within deck bounds, avoids pushing parent controls
+            Pane screenBox = new Pane() {
+                @Override
+                protected void layoutChildren() {
+                    double w = getWidth();
+                    double h = getHeight();
+                    if (w <= 0 || h <= 0) return;
+                    Image img = screenView.getImage();
+                    if (img != null && img.getWidth() > 0 && img.getHeight() > 0) {
+                        double scale = Math.min((w - 12) / img.getWidth(), (h - 12) / img.getHeight());
+                        double tw = Math.max(1, img.getWidth() * scale);
+                        double th = Math.max(1, img.getHeight() * scale);
+                        screenView.setFitWidth(tw);
+                        screenView.setFitHeight(th);
+                        screenView.relocate((w - tw) / 2.0, (h - th) / 2.0);
+                    }
+                    if (loadingNotice.isVisible()) {
+                        double nw = loadingNotice.prefWidth(-1);
+                        double nh = loadingNotice.prefHeight(-1);
+                        loadingNotice.resizeRelocate((w - nw) / 2.0, (h - nh) / 2.0, nw, nh);
+                    }
+                }
+            };
+            screenBox.setStyle("-fx-background-color: #0c0d14; -fx-background-radius: 12;");
+            screenBox.setMinSize(0, 0);
             VBox.setVgrow(screenBox, Priority.ALWAYS);
-
-            screenView.fitWidthProperty().bind(deck.widthProperty().subtract(36));
-            screenView.fitHeightProperty().bind(deck.heightProperty().subtract(110));
-
-            Label loadingNotice = new Label("Đang nhận luồng hình ảnh màn hình...");
-            loadingNotice.setStyle("-fx-text-fill: #9ca3af; -fx-font-size: 14px;");
 
             screenBox.getChildren().addAll(loadingNotice, screenView);
             screenView.imageProperty().addListener((obs, oldVal, newVal) -> {
                 if (newVal != null) loadingNotice.setVisible(false);
+                screenBox.requestLayout();
             });
 
             // Action Bar
             HBox streamActions = new HBox(10);
             streamActions.setAlignment(Pos.CENTER_LEFT);
+            streamActions.setMinHeight(34);
 
             if (isHost) {
                 Button stopBtn = new Button("⏹️  Dừng chia sẻ màn hình");
-                stopBtn.setStyle("-fx-background-color: #fee2e2; -fx-text-fill: #dc2626; -fx-font-weight: 800; -fx-background-radius: 8; -fx-padding: 8 16;");
+                stopBtn.setStyle("-fx-background-color: #fee2e2; -fx-text-fill: #dc2626; -fx-font-weight: 800; -fx-background-radius: 8; -fx-padding: 6 14; -fx-cursor: hand;");
                 stopBtn.setOnAction(e -> {
                     courseRepo.stopScreenShare(course.id());
                     ScreenShareEngine.getInstance().stop();
@@ -908,15 +932,26 @@ public final class StudyroomApp extends Application {
                     toast("Đã dừng chia sẻ màn hình.");
                 });
 
+                Button minBtn = new Button("🗕  Thu nhỏ để bắt đầu giảng bài");
+                minBtn.getStyleClass().add("button");
+                minBtn.setStyle("-fx-font-weight: bold; -fx-padding: 6 12; -fx-font-size: 12px;");
+                minBtn.setOnAction(e -> {
+                    Stage stage = (Stage) container.getScene().getWindow();
+                    if (stage != null) stage.setIconified(true);
+                    toast("Đã thu nhỏ Studyroom. Màn hình của bạn đang phát trực tiếp cho cả phòng!");
+                });
+
+                Button docBtn = new Button("📚  Slide & Tài liệu");
+                docBtn.getStyleClass().add("button");
+                docBtn.setStyle("-fx-padding: 6 12; -fx-font-size: 12px;");
+                docBtn.setOnAction(e -> onGoToMaterials.run());
+
                 Button boardBtn = new Button("✏️  Bảng trắng");
                 boardBtn.getStyleClass().add("button");
+                boardBtn.setStyle("-fx-padding: 6 12; -fx-font-size: 12px;");
                 boardBtn.setOnAction(e -> toast("Mở bảng trắng tương tác trực tiếp."));
 
-                Button noteBtn = new Button("📄  Ghi chú");
-                noteBtn.getStyleClass().add("button");
-                noteBtn.setOnAction(e -> toast("Ghi chú cá nhân đã lưu."));
-
-                streamActions.getChildren().addAll(stopBtn, boardBtn, noteBtn);
+                streamActions.getChildren().addAll(stopBtn, minBtn, docBtn, boardBtn);
             } else {
                 Label studentStatus = new Label("Đang theo dõi màn hình bài giảng trực tiếp từ chủ phòng");
                 studentStatus.setStyle("-fx-text-fill: -muted; -fx-font-size: 13px;");
@@ -924,10 +959,12 @@ public final class StudyroomApp extends Application {
 
                 Button handBtn = new Button("🙋  Giơ tay phát biểu");
                 handBtn.getStyleClass().addAll("button");
+                handBtn.setStyle("-fx-padding: 6 12; -fx-font-size: 12px;");
                 handBtn.setOnAction(e -> toast("Đã giơ tay xin phát biểu với chủ phòng!"));
 
                 Button noteBtn = new Button("📄  Ghi chú cá nhân");
                 noteBtn.getStyleClass().add("button");
+                noteBtn.setStyle("-fx-padding: 6 12; -fx-font-size: 12px;");
                 noteBtn.setOnAction(e -> toast("Mở sổ ghi chú cá nhân."));
 
                 streamActions.getChildren().addAll(studentStatus, handBtn, noteBtn);
@@ -945,9 +982,12 @@ public final class StudyroomApp extends Application {
         }
 
         // BOTTOM DOCK BAR
-        HBox dock = new HBox(14);
+        HBox dock = new HBox(12);
         dock.setAlignment(Pos.CENTER);
         dock.getStyleClass().add("dock-bar");
+        dock.setMinHeight(52);
+        dock.setPrefHeight(52);
+        dock.setMaxHeight(52);
 
         Button micBtn = new Button(isMicOn ? "🎙️ Bật mic" : "🔇 Tắt mic");
         micBtn.getStyleClass().add("dock-btn");
@@ -1027,30 +1067,40 @@ public final class StudyroomApp extends Application {
 
         leftPane.getChildren().addAll(deck, dock);
 
-        // RIGHT: Video Sidebar (Only shows users who are ACTUALLY online in the room)
-        VBox rightPane = new VBox(10);
-        rightPane.setPrefWidth(220);
-        rightPane.setMinWidth(200);
+        // User requirement: "phần bên phải khi có người dùng vào phòng mới hiện nha, đồng thời cho phép người dùng bật cam luôn"
+        boolean hasOtherMembers = onlineMembers.stream().anyMatch(m -> !m.username().equalsIgnoreCase(user.username()));
+        boolean showRightPane = hasOtherMembers || isCameraOn;
 
-        Label sidebarTitle = new Label("Thành viên trong phòng (" + onlineMembers.size() + ")");
-        sidebarTitle.setStyle("-fx-font-weight: 800; -fx-font-size: 13px; -fx-text-fill: -ink;");
-        rightPane.getChildren().add(sidebarTitle);
+        if (showRightPane) {
+            VBox rightPane = new VBox(10);
+            rightPane.setPrefWidth(220);
+            rightPane.setMinWidth(200);
+            rightPane.setMaxWidth(230);
+            rightPane.setMinHeight(0);
 
-        VBox videoList = new VBox(8);
-        for (CourseRepository.OnlineMember m : onlineMembers) {
-            boolean isMe = m.username().equals(user.username());
-            Pane tile = createMemberVideoTile(m, isMe, myCamView);
-            videoList.getChildren().add(tile);
+            Label sidebarTitle = new Label("Thành viên trong phòng (" + onlineMembers.size() + ")");
+            sidebarTitle.setStyle("-fx-font-weight: 800; -fx-font-size: 13px; -fx-text-fill: -ink;");
+            rightPane.getChildren().add(sidebarTitle);
+
+            VBox videoList = new VBox(8);
+            for (CourseRepository.OnlineMember m : onlineMembers) {
+                boolean isMe = m.username().equals(user.username());
+                Pane tile = createMemberVideoTile(m, isMe, myCamView);
+                videoList.getChildren().add(tile);
+            }
+
+            ScrollPane videoScroll = new ScrollPane(videoList);
+            videoScroll.setFitToWidth(true);
+            videoScroll.getStyleClass().add("thread-scroll");
+            VBox.setVgrow(videoScroll, Priority.ALWAYS);
+
+            rightPane.getChildren().add(videoScroll);
+
+            body.getChildren().addAll(leftPane, rightPane);
+        } else {
+            body.getChildren().add(leftPane);
         }
 
-        ScrollPane videoScroll = new ScrollPane(videoList);
-        videoScroll.setFitToWidth(true);
-        videoScroll.getStyleClass().add("thread-scroll");
-        VBox.setVgrow(videoScroll, Priority.ALWAYS);
-
-        rightPane.getChildren().add(videoScroll);
-
-        body.getChildren().addAll(leftPane, rightPane);
         container.getChildren().add(body);
     }
 
