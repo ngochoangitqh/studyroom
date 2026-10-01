@@ -230,14 +230,14 @@ public final class StudyroomApp extends Application {
         Button send = iconButton("➤", "Gửi tin nhắn");
         send.getStyleClass().add("send-icon");
 
-        Popup emojiPopup = createEmojiPicker(composer);
+        Popup emojiPopup = createEmojiPicker(composer, roomId, scroll);
         emoji.setOnAction(e -> {
             if (emojiPopup.isShowing()) {
                 emojiPopup.hide();
             } else {
                 Bounds bounds = emoji.localToScreen(emoji.getBoundsInLocal());
                 if (bounds != null) {
-                    emojiPopup.show(emoji, bounds.getMinX() - 150, bounds.getMinY() - 295);
+                    emojiPopup.show(emoji, bounds.getMinX() - 170, bounds.getMinY() - 340);
                 }
             }
         });
@@ -286,7 +286,9 @@ public final class StudyroomApp extends Application {
         String previewText = "Chưa có tin nhắn";
         if (!latest.isEmpty()) {
             String b = latest.getFirst().body();
-            if (b != null && b.startsWith("[IMAGE:")) {
+            if (b != null && b.startsWith("[STICKER:")) {
+                previewText = latest.getFirst().sender() + ": 🎨 [Icon màu sắc]";
+            } else if (b != null && b.startsWith("[IMAGE:")) {
                 previewText = latest.getFirst().sender() + ": 🖼️ [Hình ảnh]";
             } else if (b != null && b.startsWith("[FILE:")) {
                 String fn = "Tệp tin";
@@ -319,7 +321,24 @@ public final class StudyroomApp extends Application {
         Label time = new Label(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")) + (mine ? "  ✓✓" : ""));
         time.getStyleClass().add("message-time");
 
-        if (text != null && text.startsWith("[IMAGE:") && text.endsWith("]")) {
+        if (text != null && text.startsWith("[STICKER:") && text.endsWith("]")) {
+            String code = text.substring(9, text.length() - 1);
+            var is = getClass().getResourceAsStream("/emojis/" + code + ".png");
+            if (is != null) {
+                Image stickerImg = new Image(is);
+                ImageView iv = new ImageView(stickerImg);
+                iv.setFitWidth(64);
+                iv.setFitHeight(64);
+                iv.setPreserveRatio(true);
+                iv.setSmooth(true);
+
+                bubble.setStyle("-fx-background-color: transparent; -fx-padding: 0;");
+                bubble.getChildren().addAll(iv, time);
+            } else {
+                Label fallback = new Label("🎨 [Icon: " + code + "]");
+                bubble.getChildren().addAll(fallback, time);
+            }
+        } else if (text != null && text.startsWith("[IMAGE:") && text.endsWith("]")) {
             String inner = text.substring(7, text.length() - 1);
             int colonIdx = inner.indexOf(':');
             String attId = colonIdx != -1 ? inner.substring(0, colonIdx) : inner;
@@ -431,35 +450,177 @@ public final class StudyroomApp extends Application {
         messages.getChildren().add(line);
     }
 
-    private Popup createEmojiPicker(TextField targetField) {
+    private record ColorEmojiItem(String code, String name, String category) {}
+
+    private static final List<ColorEmojiItem> COLOR_EMOJIS = List.of(
+        // Mặt cười & Cảm xúc
+        new ColorEmojiItem("1f600", "Cười tươi", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f603", "Cười lớn", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f604", "Hớn hở", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f601", "Cười tít mắt", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f606", "Cười sảng khoái", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f602", "Cười ra nước mắt", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f923", "Cười nghiêng ngả", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f60a", "Thẹn thùng", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f607", "Thiên thần", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f642", "Mỉm cười", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f643", "Ngược đời", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f609", "Nháy mắt", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f60d", "Mê mẩn", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f970", "Yêu thương", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f618", "Hôn gió", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f60b", "Ngon miệng", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f61b", "Lè lưỡi", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f61c", "Lém lỉnh", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f92a", "Nghịch ngợm", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f917", "Ôm ấm áp", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f914", "Suy nghĩ", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f92b", "Suỵt im lặng", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f925", "Nói dối", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f60e", "Cực ngầu", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f973", "Tiệc tùng", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f92f", "Bùng nổ não", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f631", "Hốt hoảng", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f62d", "Khóc to", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f621", "Tức giận", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f97a", "Năn nỉ đáng yêu", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f924", "Thèm thuồng", "Mặt cười & Cảm xúc"),
+        new ColorEmojiItem("1f634", "Ngủ ngon", "Mặt cười & Cảm xúc"),
+
+        // Cử chỉ & Thả tim
+        new ColorEmojiItem("1f44d", "Tuyệt vời (Like)", "Cử chỉ & Thả tim"),
+        new ColorEmojiItem("1f44e", "Dislike", "Cử chỉ & Thả tim"),
+        new ColorEmojiItem("1f44f", "Vỗ tay tán thưởng", "Cử chỉ & Thả tim"),
+        new ColorEmojiItem("1f64c", "Hoan hô", "Cử chỉ & Thả tim"),
+        new ColorEmojiItem("1f91d", "Bắt tay hợp tác", "Cử chỉ & Thả tim"),
+        new ColorEmojiItem("270c", "Chiến thắng (Peace)", "Cử chỉ & Thả tim"),
+        new ColorEmojiItem("1f91e", "Chúc may mắn", "Cử chỉ & Thả tim"),
+        new ColorEmojiItem("1f64f", "Cảm ơn / Cầu chúc", "Cử chỉ & Thả tim"),
+        new ColorEmojiItem("1f4aa", "Cố lên (Cơ bắp)", "Cử chỉ & Thả tim"),
+        new ColorEmojiItem("2764", "Trái tim đỏ", "Cử chỉ & Thả tim"),
+        new ColorEmojiItem("1f496", "Tim lấp lánh", "Cử chỉ & Thả tim"),
+        new ColorEmojiItem("1f494", "Tan vỡ", "Cử chỉ & Thả tim"),
+        new ColorEmojiItem("1f495", "Hai trái tim", "Cử chỉ & Thả tim"),
+        new ColorEmojiItem("1f525", "Cháy quá (Fire)", "Cử chỉ & Thả tim"),
+        new ColorEmojiItem("2728", "Lấp lánh", "Cử chỉ & Thả tim"),
+        new ColorEmojiItem("1f389", "Pháo tiệc chúc mừng", "Cử chỉ & Thả tim"),
+        new ColorEmojiItem("1f4af", "100 điểm", "Cử chỉ & Thả tim"),
+        new ColorEmojiItem("1f680", "Tên lửa bay cao", "Cử chỉ & Thả tim"),
+        new ColorEmojiItem("2b50", "Ngôi sao vàng", "Cử chỉ & Thả tim"),
+        new ColorEmojiItem("1f4a5", "Bùng nổ", "Cử chỉ & Thả tim"),
+
+        // Học tập & Đồ vật
+        new ColorEmojiItem("1f4da", "Sách vở học tập", "Học tập & Đồ vật"),
+        new ColorEmojiItem("1f4d6", "Mở sách", "Học tập & Đồ vật"),
+        new ColorEmojiItem("1f4dd", "Ghi chú bài học", "Học tập & Đồ vật"),
+        new ColorEmojiItem("270f", "Bút chì", "Học tập & Đồ vật"),
+        new ColorEmojiItem("1f393", "Tốt nghiệp / Cử nhân", "Học tập & Đồ vật"),
+        new ColorEmojiItem("1f392", "Balo đi học", "Học tập & Đồ vật"),
+        new ColorEmojiItem("1f4bb", "Laptop máy tính", "Học tập & Đồ vật"),
+        new ColorEmojiItem("1f4ca", "Biểu đồ cột", "Học tập & Đồ vật"),
+        new ColorEmojiItem("1f4c8", "Biểu đồ tăng trưởng", "Học tập & Đồ vật"),
+        new ColorEmojiItem("23f0", "Đồng hồ báo thức", "Học tập & Đồ vật"),
+        new ColorEmojiItem("1f3c6", "Cúp vàng vô địch", "Học tập & Đồ vật"),
+        new ColorEmojiItem("1f947", "Huy chương vàng", "Học tập & Đồ vật"),
+        new ColorEmojiItem("1f3af", "Trúng đích", "Học tập & Đồ vật"),
+        new ColorEmojiItem("1f4a1", "Ý tưởng sáng tạo", "Học tập & Đồ vật"),
+        new ColorEmojiItem("1f4cc", "Ghim bài", "Học tập & Đồ vật"),
+        new ColorEmojiItem("1f514", "Chuông thông báo", "Học tập & Đồ vật"),
+        new ColorEmojiItem("2615", "Cà phê tỉnh táo", "Học tập & Đồ vật"),
+        new ColorEmojiItem("1f355", "Pizza tiếp sức", "Học tập & Đồ vật"),
+        new ColorEmojiItem("2705", "Đã hoàn thành", "Học tập & Đồ vật"),
+        new ColorEmojiItem("274c", "Sai / Chưa đúng", "Học tập & Đồ vật"),
+        new ColorEmojiItem("26a0", "Lưu ý quan trọng", "Học tập & Đồ vật")
+    );
+
+    private Popup createEmojiPicker(TextField targetField, String roomId, ScrollPane scroll) {
         Popup popup = new Popup();
         popup.setAutoHide(true);
 
-        VBox box = new VBox(8);
-        box.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 12; " +
-                "-fx-border-color: #e5e7eb; -fx-border-radius: 12; " +
-                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.15), 16, 0.2, 0, 4);");
-        box.setPrefWidth(330);
-        box.setMaxWidth(330);
+        VBox box = new VBox(10);
+        box.setStyle("-fx-background-color: white; -fx-background-radius: 14; -fx-padding: 12; " +
+                "-fx-border-color: #e5e7eb; -fx-border-radius: 14; " +
+                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.18), 18, 0.2, 0, 4);");
+        box.setPrefWidth(350);
+        box.setMaxWidth(350);
 
-        Label title = new Label("Biểu tượng cảm xúc (Emoji)");
-        title.setStyle("-fx-font-size: 13px; -fx-font-weight: 800; -fx-text-fill: #1f2937;");
+        HBox tabBar = new HBox(8);
+        tabBar.setAlignment(Pos.CENTER_LEFT);
 
+        Button tabColorBtn = new Button("🎨 Icon Màu Sắc");
+        Button tabTextBtn = new Button("🔤 Ký tự Text");
+
+        String activeTabStyle = "-fx-background-color: #6366f1; -fx-text-fill: white; -fx-font-weight: 800; -fx-font-size: 11px; -fx-background-radius: 20; -fx-padding: 5 14; -fx-cursor: hand;";
+        String inactiveTabStyle = "-fx-background-color: #f3f4f6; -fx-text-fill: #4b5563; -fx-font-weight: 700; -fx-font-size: 11px; -fx-background-radius: 20; -fx-padding: 5 14; -fx-cursor: hand;";
+
+        tabColorBtn.setStyle(activeTabStyle);
+        tabTextBtn.setStyle(inactiveTabStyle);
+        tabBar.getChildren().addAll(tabColorBtn, tabTextBtn);
+
+        StackPane contentStack = new StackPane();
+
+        // 1. Color Emojis / Stickers View
+        VBox colorContainer = new VBox(8);
+        java.util.Map<String, FlowPane> catPanes = new java.util.LinkedHashMap<>();
+        for (ColorEmojiItem item : COLOR_EMOJIS) {
+            FlowPane pane = catPanes.computeIfAbsent(item.category(), cat -> {
+                FlowPane f = new FlowPane(4, 4);
+                f.setPrefWrapLength(320);
+                return f;
+            });
+
+            var is = getClass().getResourceAsStream("/emojis/" + item.code() + ".png");
+            if (is != null) {
+                Image img = new Image(is);
+                ImageView iv = new ImageView(img);
+                iv.setFitWidth(28);
+                iv.setFitHeight(28);
+                iv.setPreserveRatio(true);
+                iv.setSmooth(true);
+
+                Button btn = new Button("", iv);
+                btn.setStyle("-fx-background-color: transparent; -fx-padding: 3; -fx-cursor: hand; -fx-background-radius: 6;");
+                btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: #e0e7ff; -fx-padding: 3; -fx-cursor: hand; -fx-background-radius: 6;"));
+                btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: transparent; -fx-padding: 3; -fx-cursor: hand; -fx-background-radius: 6;"));
+                Tooltip.install(btn, new Tooltip(item.name() + " (Bấm để gửi)"));
+
+                btn.setOnAction(e -> {
+                    String payload = "[STICKER:" + item.code() + "]";
+                    addMessage(roomId, user.displayName(), payload, true, true);
+                    if (node != null) node.broadcast(user.displayName(), payload);
+                    scroll.setVvalue(1.0);
+                    popup.hide();
+                });
+                pane.getChildren().add(btn);
+            }
+        }
+
+        for (java.util.Map.Entry<String, FlowPane> entry : catPanes.entrySet()) {
+            Label catTitle = new Label(entry.getKey());
+            catTitle.setStyle("-fx-font-size: 11px; -fx-font-weight: 800; -fx-text-fill: #6366f1; -fx-padding: 4 0 2 0;");
+            colorContainer.getChildren().addAll(catTitle, entry.getValue());
+        }
+
+        ScrollPane colorScroll = new ScrollPane(colorContainer);
+        colorScroll.setFitToWidth(true);
+        colorScroll.setPrefHeight(250);
+        colorScroll.setMaxHeight(250);
+        colorScroll.setStyle("-fx-background-color: transparent; -fx-background: transparent; -fx-padding: 0;");
+        colorScroll.getStyleClass().add("thread-scroll");
+
+        // 2. Text Emojis View
+        VBox textContainer = new VBox(8);
         String[][] categories = {
             {"Cảm xúc", "😀,😃,😄,😁,😆,😅,😂,🤣,😊,😇,🙂,🙃,😉,😌,😍,🥰,😘,😋,😛,😜,🤪,😝,🤗,🤭,🤔,🤫,🤐,🤨,😐,😑,😶,😏,😒,🙄,😬,😴,😷,🤯,🥳,😎"},
             {"Cử chỉ & Tim", "👍,👎,👏,🙌,🤝,✌️,🤞,🤟,🤙,👈,👉,👆,👇,☝️,✋,🙏,❤️,🧡,💛,💚,💙,💜,🖤,💔,❣️,💕,💞,💓,💗,💖,💘,✨,🔥,🌟,⭐,💯,🎉,🎊,🚀,💡"},
             {"Học tập & Đồ vật", "📚,📖,📝,✏️,🖊️,🎓,🎒,💻,🖥️,📱,📊,📈,📅,🕒,⏰,🏆,🥇,🎯,📌,📎,☕,🍕,🍔,🍰,🎁,⚽,🏀,🎨,🎵,🎶,🔔,📣,🔍,🔒,🔑,✅,❌,⚠️,❓,❗"}
         };
-
-        VBox catContainer = new VBox(10);
         for (String[] cat : categories) {
             Label catLabel = new Label(cat[0]);
             catLabel.setStyle("-fx-font-size: 11px; -fx-font-weight: 700; -fx-text-fill: #6b7280; -fx-padding: 2 0 0 0;");
-
             FlowPane flow = new FlowPane(4, 4);
-            flow.setPrefWrapLength(300);
-            String[] emojis = cat[1].split(",");
-            for (String em : emojis) {
+            flow.setPrefWrapLength(320);
+            for (String em : cat[1].split(",")) {
                 Button btn = new Button(em);
                 btn.setStyle("-fx-background-color: transparent; -fx-font-size: 18px; -fx-padding: 4 6; -fx-cursor: hand; -fx-background-radius: 6;");
                 btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: #f3f4f6; -fx-font-size: 18px; -fx-padding: 4 6; -fx-cursor: hand; -fx-background-radius: 6;"));
@@ -475,17 +636,32 @@ public final class StudyroomApp extends Application {
                 });
                 flow.getChildren().add(btn);
             }
-            catContainer.getChildren().addAll(catLabel, flow);
+            textContainer.getChildren().addAll(catLabel, flow);
         }
+        ScrollPane textScroll = new ScrollPane(textContainer);
+        textScroll.setFitToWidth(true);
+        textScroll.setPrefHeight(250);
+        textScroll.setMaxHeight(250);
+        textScroll.setStyle("-fx-background-color: transparent; -fx-background: transparent; -fx-padding: 0;");
+        textScroll.getStyleClass().add("thread-scroll");
+        textScroll.setVisible(false);
 
-        ScrollPane sp = new ScrollPane(catContainer);
-        sp.setFitToWidth(true);
-        sp.setPrefHeight(230);
-        sp.setMaxHeight(230);
-        sp.setStyle("-fx-background-color: transparent; -fx-background: transparent; -fx-padding: 0;");
-        sp.getStyleClass().add("thread-scroll");
+        tabColorBtn.setOnAction(e -> {
+            tabColorBtn.setStyle(activeTabStyle);
+            tabTextBtn.setStyle(inactiveTabStyle);
+            colorScroll.setVisible(true);
+            textScroll.setVisible(false);
+        });
 
-        box.getChildren().addAll(title, sp);
+        tabTextBtn.setOnAction(e -> {
+            tabTextBtn.setStyle(activeTabStyle);
+            tabColorBtn.setStyle(inactiveTabStyle);
+            textScroll.setVisible(true);
+            colorScroll.setVisible(false);
+        });
+
+        contentStack.getChildren().addAll(colorScroll, textScroll);
+        box.getChildren().addAll(tabBar, contentStack);
         popup.getContent().add(box);
         return popup;
     }
