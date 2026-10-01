@@ -197,11 +197,11 @@ public final class CourseRepository {
     public List<Material> materialsOf(String courseId) {
         List<Material> list = new ArrayList<>();
         try (Connection c = database.connect();
-             PreparedStatement q = c.prepareStatement("SELECT material_id, course_id, title, file_type, file_size, uploaded_by FROM course_material WHERE course_id = ? ORDER BY created_at DESC")) {
+             PreparedStatement q = c.prepareStatement("SELECT material_id, course_id, title, file_type, file_size, uploaded_by, original_file_name FROM course_material WHERE course_id = ? ORDER BY created_at DESC")) {
             q.setString(1, courseId);
             ResultSet rs = q.executeQuery();
             while (rs.next()) {
-                list.add(new Material(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6)));
+                list.add(new Material(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7)));
             }
             return list;
         } catch (SQLException e) {
@@ -209,19 +209,45 @@ public final class CourseRepository {
         }
     }
 
-    public void addMaterial(String courseId, String title, String fileType, String fileSize, String uploader) {
+    public void addMaterial(String courseId, String title, String fileType, String fileSize, String uploader, byte[] fileData, String originalFileName) {
         try (Connection c = database.connect();
-             PreparedStatement q = c.prepareStatement("INSERT INTO course_material(material_id, course_id, title, file_type, file_size, uploaded_by) VALUES (?, ?, ?, ?, ?, ?)")) {
+             PreparedStatement q = c.prepareStatement("INSERT INTO course_material(material_id, course_id, title, file_type, file_size, uploaded_by, file_data, original_file_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
             q.setString(1, UUID.randomUUID().toString());
             q.setString(2, courseId);
             q.setString(3, title);
             q.setString(4, fileType);
             q.setString(5, fileSize);
             q.setString(6, uploader);
+            if (fileData != null) {
+                q.setBytes(7, fileData);
+            } else {
+                q.setNull(7, java.sql.Types.BINARY);
+            }
+            q.setString(8, originalFileName);
             q.executeUpdate();
         } catch (SQLException e) {
             throw new IllegalStateException("Không thể thêm tài liệu.", e);
         }
+    }
+
+    public byte[] getMaterialData(String materialId) {
+        try (Connection c = database.connect();
+             PreparedStatement q = c.prepareStatement("SELECT file_data FROM course_material WHERE material_id = ?")) {
+            q.setString(1, materialId);
+            ResultSet rs = q.executeQuery();
+            if (rs.next()) {
+                return rs.getBytes(1);
+            }
+        } catch (SQLException ignored) { }
+        return null;
+    }
+
+    public void deleteMaterial(String materialId) {
+        try (Connection c = database.connect();
+             PreparedStatement q = c.prepareStatement("DELETE FROM course_material WHERE material_id = ?")) {
+            q.setString(1, materialId);
+            q.executeUpdate();
+        } catch (SQLException ignored) { }
     }
 
     public List<Schedule> schedulesOf(String courseId) {
@@ -419,7 +445,8 @@ public final class CourseRepository {
     }
 
     public record Course(String id, String code, String title, String description, String ownerUsername, String password, int currentSlide, int memberCount, boolean isPresenting, String hostIp, int screenPort) { }
-    public record Material(String id, String courseId, String title, String fileType, String fileSize, String uploadedBy) { }
+    public record Material(String id, String courseId, String title, String fileType, String fileSize, String uploadedBy, String originalFileName) { }
+
     public record Schedule(String id, String courseId, String sessionTitle, String sessionTime, String description) { }
     public record OnlineMember(String username, String displayName, boolean cameraOn, boolean micOn, String ip, int voicePort, boolean speaking, int camPort) { }
 }

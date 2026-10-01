@@ -145,6 +145,9 @@ public final class Database {
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
                 )
                 """);
+            statement.executeUpdate("ALTER TABLE course_material ADD COLUMN IF NOT EXISTS file_data BYTEA");
+            statement.executeUpdate("ALTER TABLE course_material ADD COLUMN IF NOT EXISTS original_file_name VARCHAR(255)");
+
             statement.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS course_schedule (
                   schedule_id VARCHAR(64) PRIMARY KEY,

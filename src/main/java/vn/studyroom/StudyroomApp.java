@@ -2012,6 +2012,7 @@ public final class StudyroomApp extends Application {
     }
 
     private void renderMaterialsTab(CourseRepository.Course course, VBox container) {
+        boolean isHost = course.ownerUsername().equalsIgnoreCase(user.username());
         VBox root = new VBox(14);
         VBox.setVgrow(root, Priority.ALWAYS);
 
@@ -2022,11 +2023,15 @@ public final class StudyroomApp extends Application {
         Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
 
-        Button addBtn = new Button("＋ Thêm tài liệu mới");
-        addBtn.getStyleClass().addAll("button", "button-primary");
-        addBtn.setOnAction(e -> showAddMaterialDialog(course.id(), () -> renderMaterialsTab(course, container)));
+        bar.getChildren().addAll(title, gap);
 
-        bar.getChildren().addAll(title, gap, addBtn);
+        if (isHost) {
+            Button addBtn = new Button("＋ Thêm tài liệu mới");
+            addBtn.getStyleClass().addAll("button", "button-primary");
+            addBtn.setOnAction(e -> showAddMaterialDialog(course.id(), () -> renderMaterialsTab(course, container)));
+            bar.getChildren().add(addBtn);
+        }
+
         root.getChildren().add(bar);
 
         List<CourseRepository.Material> materials = courseRepo.materialsOf(course.id());
@@ -2034,43 +2039,97 @@ public final class StudyroomApp extends Application {
         list.setPadding(new Insets(6, 0, 16, 0));
 
         if (materials.isEmpty()) {
-            Label empty = new Label("Chưa có tài liệu nào trong phòng học.");
-            empty.getStyleClass().add("muted");
-            list.getChildren().add(empty);
+            VBox emptyBox = new VBox(10);
+            emptyBox.setAlignment(Pos.CENTER);
+            emptyBox.setPadding(new Insets(40, 0, 20, 0));
+            Label emptyIcon = new Label("📂");
+            emptyIcon.setStyle("-fx-font-size: 40px;");
+            Label emptyMsg = new Label(isHost ? "Chưa có tài liệu nào.\nNhấn \"+ Thêm tài liệu mới\" để tải lên slide bài giảng, đề thi..." : "Chủ phòng chưa tải tài liệu nào lên.\nHãy quay lại sau!");
+            emptyMsg.getStyleClass().add("muted");
+            emptyMsg.setWrapText(true);
+            emptyMsg.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+            emptyBox.getChildren().addAll(emptyIcon, emptyMsg);
+            list.getChildren().add(emptyBox);
         } else {
             for (CourseRepository.Material m : materials) {
                 HBox item = new HBox(14);
                 item.setAlignment(Pos.CENTER_LEFT);
-                item.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 14 18; -fx-border-color: -line; -fx-border-radius: 12;");
+                item.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 14 18; -fx-border-color: #e5e7eb; -fx-border-radius: 12; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.04), 4, 0, 0, 1);");
 
-                String icon = switch (m.fileType().toUpperCase()) {
-                    case "SLIDE" -> "📑";
+                String ext = (m.originalFileName() != null && m.originalFileName().contains("."))
+                    ? m.originalFileName().substring(m.originalFileName().lastIndexOf('.') + 1).toUpperCase() : m.fileType();
+                String icon = switch (ext.toUpperCase()) {
                     case "PDF" -> "📕";
+                    case "PPT", "PPTX", "SLIDE" -> "📑";
+                    case "DOC", "DOCX" -> "📘";
+                    case "XLS", "XLSX" -> "📗";
+                    case "ZIP", "RAR", "7Z" -> "🗜️";
+                    case "PNG", "JPG", "JPEG" -> "🖼️";
                     case "EXAM" -> "📝";
                     default -> "📁";
                 };
 
                 Label iconLbl = new Label(icon);
-                iconLbl.setStyle("-fx-font-size: 24px;");
+                iconLbl.setStyle("-fx-font-size: 28px;");
 
                 VBox info = new VBox(4);
                 HBox.setHgrow(info, Priority.ALWAYS);
                 Label nameLbl = new Label(m.title());
-                nameLbl.setStyle("-fx-font-size: 14px; -fx-font-weight: 800; -fx-text-fill: -ink;");
-                Label metaLbl = new Label(m.fileSize() + "  ·  Đăng bởi @" + m.uploadedBy());
-                metaLbl.getStyleClass().add("muted");
-                metaLbl.setStyle("-fx-font-size: 12px;");
+                nameLbl.setStyle("-fx-font-size: 14px; -fx-font-weight: 800; -fx-text-fill: #111827;");
+                nameLbl.setWrapText(true);
+                nameLbl.setMaxWidth(320);
+
+                String metaText = m.fileSize() != null ? m.fileSize() : "";
+                if (m.originalFileName() != null) metaText += (metaText.isEmpty() ? "" : "  ·  ") + m.originalFileName();
+                metaText += "  ·  Đăng bởi @" + m.uploadedBy();
+                Label metaLbl = new Label(metaText);
+                metaLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #6b7280;");
+                metaLbl.setWrapText(true);
+                metaLbl.setMaxWidth(320);
                 info.getChildren().addAll(nameLbl, metaLbl);
 
-                Button viewBtn = new Button("Xem trước 👁");
-                viewBtn.getStyleClass().add("button");
-                viewBtn.setOnAction(e -> toast("Đang mở xem trước: " + m.title()));
+                // Download button — tải file thật
+                boolean hasData = m.originalFileName() != null; // indicator that real file was uploaded
+                Button downloadBtn = new Button("⬇  Tải về");
+                downloadBtn.setStyle("-fx-background-color: #4f46e5; -fx-text-fill: white; -fx-font-weight: 700; -fx-font-size: 12px; -fx-background-radius: 20; -fx-padding: 6 16; -fx-cursor: hand;");
+                downloadBtn.setOnAction(e -> {
+                    byte[] data = courseRepo.getMaterialData(m.id());
+                    if (data == null || data.length == 0) {
+                        toast("Tài liệu này chưa có file để tải (chỉ có metadata).");
+                        return;
+                    }
+                    FileChooser saveChooser = new FileChooser();
+                    saveChooser.setTitle("Lưu tài liệu về máy");
+                    String defaultName = m.originalFileName() != null ? m.originalFileName() : m.title().replaceAll("[^a-zA-Z0-9\\-_.\\s]", "_") + ".pdf";
+                    saveChooser.setInitialFileName(defaultName);
+                    File target = saveChooser.showSaveDialog(scene != null && scene.getWindow() != null ? scene.getWindow() : null);
+                    if (target != null) {
+                        try {
+                            Files.write(target.toPath(), data);
+                            toast("✅ Đã lưu \"" + m.title() + "\" về máy thành công!");
+                        } catch (Exception ex) {
+                            toast("Lỗi lưu file: " + ex.getMessage());
+                        }
+                    }
+                });
 
-                Button downloadBtn = new Button("Tải về ⬇");
-                downloadBtn.getStyleClass().addAll("button", "button-primary");
-                downloadBtn.setOnAction(e -> toast("Đang tải tài liệu: " + m.title() + " về máy..."));
+                HBox actions = new HBox(8, downloadBtn);
+                actions.setAlignment(Pos.CENTER_RIGHT);
 
-                item.getChildren().addAll(iconLbl, info, viewBtn, downloadBtn);
+                // Host: thêm nút Xóa
+                if (isHost) {
+                    Button delBtn = new Button("🗑");
+                    delBtn.setStyle("-fx-background-color: #fee2e2; -fx-text-fill: #dc2626; -fx-font-size: 13px; -fx-background-radius: 20; -fx-padding: 6 10; -fx-cursor: hand;");
+                    delBtn.setTooltip(new Tooltip("Xóa tài liệu này"));
+                    delBtn.setOnAction(e -> {
+                        courseRepo.deleteMaterial(m.id());
+                        renderMaterialsTab(course, container);
+                        toast("Đã xóa tài liệu \"" + m.title() + "\"");
+                    });
+                    actions.getChildren().add(delBtn);
+                }
+
+                item.getChildren().addAll(iconLbl, info, actions);
                 list.getChildren().add(item);
             }
         }
@@ -2084,6 +2143,8 @@ public final class StudyroomApp extends Application {
         container.getChildren().clear();
         container.getChildren().add(root);
     }
+
+
 
     private void renderScheduleTab(CourseRepository.Course course, VBox container, Runnable onEnterClassroom) {
         VBox root = new VBox(14);
@@ -2299,45 +2360,162 @@ public final class StudyroomApp extends Application {
         dialog.getDialogPane().getStyleClass().add("custom-dialog");
 
         VBox root = new VBox(14);
-        root.setPadding(new Insets(16, 20, 16, 20));
-        root.setMinWidth(400);
+        root.setPadding(new Insets(20, 24, 20, 24));
+        root.setMinWidth(440);
 
-        Label title = new Label("Thêm tài liệu hoặc Slide mới");
+        Label title = new Label("Thêm tài liệu / Slide vào phòng học");
         title.getStyleClass().add("dialog-title");
 
+        // File chooser area
+        final File[] selectedFile = {null};
+        final byte[][] selectedBytes = {null};
+
+        HBox filePickerRow = new HBox(10);
+        filePickerRow.setAlignment(Pos.CENTER_LEFT);
+
+        Button pickFileBtn = new Button("📂  Chọn file...");
+        pickFileBtn.setStyle("-fx-background-color: #f3f4f6; -fx-border-color: #d1d5db; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 8 14; -fx-cursor: hand; -fx-font-size: 13px;");
+        pickFileBtn.setMinWidth(140);
+
+        Label fileNameLbl = new Label("Chưa chọn file nào");
+        fileNameLbl.setStyle("-fx-font-size: 12px; -fx-text-fill: #9ca3af; -fx-font-style: italic;");
+        fileNameLbl.setWrapText(true);
+        fileNameLbl.setMaxWidth(240);
+        filePickerRow.getChildren().addAll(pickFileBtn, fileNameLbl);
+
+        // File preview card (hidden until file chosen)
+        HBox previewCard = new HBox(10);
+        previewCard.setAlignment(Pos.CENTER_LEFT);
+        previewCard.setStyle("-fx-background-color: #f0f9ff; -fx-background-radius: 10; -fx-border-color: #bae6fd; -fx-border-radius: 10; -fx-padding: 10 14;");
+        previewCard.setVisible(false);
+        previewCard.setManaged(false);
+
+        Label previewIcon = new Label("📄");
+        previewIcon.setStyle("-fx-font-size: 24px;");
+        VBox previewMeta = new VBox(2);
+        Label previewName = new Label();
+        previewName.setStyle("-fx-font-weight: 700; -fx-font-size: 13px; -fx-text-fill: #0369a1;");
+        previewName.setWrapText(true);
+        previewName.setMaxWidth(300);
+        Label previewSize = new Label();
+        previewSize.setStyle("-fx-font-size: 11px; -fx-text-fill: #0ea5e9;");
+        previewMeta.getChildren().addAll(previewName, previewSize);
+        previewCard.getChildren().addAll(previewIcon, previewMeta);
+
+        // Title input
+        Label titleLabel = new Label("Tên hiển thị trong phòng học");
+        titleLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: 600; -fx-text-fill: #374151;");
         TextField titleInput = new TextField();
-        titleInput.setPromptText("Tên tài liệu / Slide (VD: Đề thi thử THPT Quốc Gia số 1)");
+        titleInput.setPromptText("VD: Đề thi thử THPT Quốc Gia số 1 · Môn Hóa học");
         titleInput.getStyleClass().add("input");
 
+        // File type combo
+        Label typeLabel = new Label("Loại tài liệu");
+        typeLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: 600; -fx-text-fill: #374151;");
         ComboBox<String> typeCombo = new ComboBox<>();
         typeCombo.getItems().addAll("SLIDE", "PDF", "EXAM", "TÀI LIỆU");
         typeCombo.setValue("SLIDE");
         typeCombo.setMaxWidth(Double.MAX_VALUE);
 
-        TextField sizeInput = new TextField();
-        sizeInput.setPromptText("Kích thước / Ghi chú (VD: 15 Trang · 3.2 MB)");
-        sizeInput.getStyleClass().add("input");
+        // Submit button
+        Button submitBtn = new Button("📤  Tải lên \u0026 Thêm vào phòng");
+        submitBtn.getStyleClass().addAll("button", "button-primary");
+        submitBtn.setMaxWidth(Double.MAX_VALUE);
+        submitBtn.setDisable(true);
 
-        Button submit = new Button("Thêm vào phòng");
-        submit.getStyleClass().addAll("button", "button-primary");
-        submit.setMaxWidth(Double.MAX_VALUE);
+        // File picker action
+        pickFileBtn.setOnAction(e -> {
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle("Chọn tài liệu để tải lên");
+            chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Tất cả tài liệu", "*.pdf", "*.ppt", "*.pptx", "*.doc", "*.docx", "*.xls", "*.xlsx", "*.txt", "*.zip", "*.png", "*.jpg", "*.jpeg"),
+                new FileChooser.ExtensionFilter("PDF (*.pdf)", "*.pdf"),
+                new FileChooser.ExtensionFilter("Slide PowerPoint (*.ppt, *.pptx)", "*.ppt", "*.pptx"),
+                new FileChooser.ExtensionFilter("Word (*.doc, *.docx)", "*.doc", "*.docx"),
+                new FileChooser.ExtensionFilter("Excel (*.xls, *.xlsx)", "*.xls", "*.xlsx"),
+                new FileChooser.ExtensionFilter("Hình ảnh (*.png, *.jpg)", "*.png", "*.jpg", "*.jpeg")
+            );
+            File f = chooser.showOpenDialog(dialog.getDialogPane().getScene().getWindow());
+            if (f != null) {
+                if (f.length() > 100 * 1024 * 1024) {
+                    toast("File quá lớn (> 100MB). Vui lòng chọn file nhỏ hơn.");
+                    return;
+                }
+                try {
+                    selectedFile[0] = f;
+                    selectedBytes[0] = Files.readAllBytes(f.toPath());
 
-        submit.setOnAction(e -> {
-            if (!titleInput.getText().isBlank()) {
+                    // Update UI
+                    String ext = f.getName().contains(".") ? f.getName().substring(f.getName().lastIndexOf('.') + 1).toUpperCase() : "FILE";
+                    String sizeStr = formatFileSize(f.length());
+
+                    fileNameLbl.setText(f.getName());
+                    fileNameLbl.setStyle("-fx-font-size: 12px; -fx-text-fill: #374151;");
+
+                    // Preview card
+                    String pIcon = switch (ext) {
+                        case "PDF" -> "📕";
+                        case "PPT", "PPTX" -> "📑";
+                        case "DOC", "DOCX" -> "📘";
+                        case "XLS", "XLSX" -> "📗";
+                        case "ZIP", "RAR" -> "🗜️";
+                        case "PNG", "JPG", "JPEG" -> "🖼️";
+                        default -> "📄";
+                    };
+                    previewIcon.setText(pIcon);
+                    previewName.setText(f.getName());
+                    previewSize.setText(ext + "  ·  " + sizeStr);
+                    previewCard.setVisible(true);
+                    previewCard.setManaged(true);
+
+                    // Auto-set title if blank
+                    if (titleInput.getText().isBlank()) {
+                        String baseName = f.getName().contains(".") ? f.getName().substring(0, f.getName().lastIndexOf('.')) : f.getName();
+                        titleInput.setText(baseName);
+                    }
+
+                    // Auto-select type based on extension
+                    if (ext.equals("PDF")) typeCombo.setValue("PDF");
+                    else if (ext.equals("PPT") || ext.equals("PPTX")) typeCombo.setValue("SLIDE");
+                    else if (ext.equals("EXAM")) typeCombo.setValue("EXAM");
+
+                    submitBtn.setDisable(false);
+                } catch (Exception ex) {
+                    toast("Không đọc được file: " + ex.getMessage());
+                }
+            }
+        });
+
+        submitBtn.setOnAction(e -> {
+            if (selectedFile[0] == null || selectedBytes[0] == null) {
+                toast("Vui lòng chọn file trước!");
+                return;
+            }
+            if (titleInput.getText().isBlank()) {
+                toast("Vui lòng nhập tên tài liệu!");
+                return;
+            }
+            try {
+                String ext = selectedFile[0].getName().contains(".") ? selectedFile[0].getName().substring(selectedFile[0].getName().lastIndexOf('.') + 1).toUpperCase() : "FILE";
+                String sizeStr = ext + "  ·  " + formatFileSize(selectedFile[0].length());
                 courseRepo.addMaterial(
                     courseId,
                     titleInput.getText().trim(),
                     typeCombo.getValue(),
-                    sizeInput.getText().isBlank() ? "Tài liệu trực tuyến" : sizeInput.getText().trim(),
-                    user.username()
+                    sizeStr,
+                    user.username(),
+                    selectedBytes[0],
+                    selectedFile[0].getName()
                 );
                 dialog.close();
                 onAdded.run();
-                toast("Đã thêm tài liệu mới thành công!");
+                toast("✅ Đã tải lên \"" + titleInput.getText().trim() + "\" thành công!");
+            } catch (Exception ex) {
+                toast("Lỗi khi tải lên: " + ex.getMessage());
             }
         });
 
-        root.getChildren().addAll(title, titleInput, typeCombo, sizeInput, submit);
+        root.getChildren().addAll(title, filePickerRow, previewCard, titleLabel, titleInput, typeLabel, typeCombo, submitBtn);
         dialog.getDialogPane().setContent(root);
 
         ButtonType closeType = new ButtonType("Đóng", ButtonBar.ButtonData.CANCEL_CLOSE);
@@ -2347,6 +2525,7 @@ public final class StudyroomApp extends Application {
 
         dialog.show();
     }
+
 
     private void showAddScheduleDialog(String courseId, Runnable onAdded) {
         Dialog<Void> dialog = new Dialog<>();
