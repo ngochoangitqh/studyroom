@@ -22,7 +22,7 @@ public final class CourseRepository {
 
         try (Connection c = database.connect()) {
             try (PreparedStatement q = c.prepareStatement(
-                    "INSERT INTO study_course(course_id, course_code, course_password, title, description, owner_username, current_slide) VALUES (?, ?, ?, ?, ?, ?, 4)")) {
+                    "INSERT INTO study_course(course_id, course_code, course_password, title, description, owner_username, current_slide, is_presenting) VALUES (?, ?, ?, ?, ?, ?, 4, FALSE)")) {
                 q.setString(1, courseId);
                 q.setString(2, normalizedCode);
                 q.setString(3, password.trim());
@@ -42,7 +42,7 @@ public final class CourseRepository {
             // Seed default materials and schedule
             seedDefaults(c, courseId, ownerUsername);
 
-            return new Course(courseId, normalizedCode, title.trim(), description, ownerUsername, password.trim(), 4, 1);
+            return new Course(courseId, normalizedCode, title.trim(), description, ownerUsername, password.trim(), 4, 1, false);
         } catch (SQLException e) {
             if ("23505".equals(e.getSQLState())) {
                 throw new IllegalArgumentException("Mã phòng học \"" + normalizedCode + "\" đã tồn tại. Vui lòng chọn mã khác.");
@@ -64,9 +64,10 @@ public final class CourseRepository {
             String owner;
             String storedPassword;
             int currentSlide;
+            boolean isPresenting;
 
             try (PreparedStatement q = c.prepareStatement(
-                    "SELECT course_id, title, description, owner_username, course_password, current_slide FROM study_course WHERE UPPER(course_code) = ?")) {
+                    "SELECT course_id, title, description, owner_username, course_password, current_slide, is_presenting FROM study_course WHERE UPPER(course_code) = ?")) {
                 q.setString(1, normalizedCode);
                 ResultSet rs = q.executeQuery();
                 if (!rs.next()) {
@@ -78,6 +79,7 @@ public final class CourseRepository {
                 owner = rs.getString(4);
                 storedPassword = rs.getString(5);
                 currentSlide = rs.getInt(6);
+                isPresenting = rs.getBoolean(7);
             }
 
             if (!storedPassword.equals(password.trim())) {
@@ -93,7 +95,7 @@ public final class CourseRepository {
             }
 
             int memberCount = countMembers(c, courseId);
-            return new Course(courseId, normalizedCode, title, desc, owner, storedPassword, currentSlide, memberCount);
+            return new Course(courseId, normalizedCode, title, desc, owner, storedPassword, currentSlide, memberCount, isPresenting);
         } catch (SQLException e) {
             throw new IllegalStateException("Không thể tham gia phòng học.", e);
         }
@@ -103,7 +105,8 @@ public final class CourseRepository {
         List<Course> list = new ArrayList<>();
         String sql = """
             SELECT c.course_id, c.course_code, c.title, c.description, c.owner_username, c.course_password, c.current_slide,
-                   (SELECT COUNT(*) FROM course_member m2 WHERE m2.course_id = c.course_id) AS member_count
+                   (SELECT COUNT(*) FROM course_member m2 WHERE m2.course_id = c.course_id) AS member_count,
+                   c.is_presenting
             FROM study_course c
             JOIN course_member m ON c.course_id = m.course_id
             WHERE m.username = ?
@@ -115,7 +118,7 @@ public final class CourseRepository {
             while (rs.next()) {
                 list.add(new Course(
                     rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
-                    rs.getString(5), rs.getString(6), rs.getInt(7), rs.getInt(8)
+                    rs.getString(5), rs.getString(6), rs.getInt(7), rs.getInt(8), rs.getBoolean(9)
                 ));
             }
             return list;
@@ -127,7 +130,8 @@ public final class CourseRepository {
     public Course getCourse(String courseId) {
         String sql = """
             SELECT c.course_id, c.course_code, c.title, c.description, c.owner_username, c.course_password, c.current_slide,
-                   (SELECT COUNT(*) FROM course_member m WHERE m.course_id = c.course_id) AS member_count
+                   (SELECT COUNT(*) FROM course_member m WHERE m.course_id = c.course_id) AS member_count,
+                   c.is_presenting
             FROM study_course c
             WHERE c.course_id = ?
         """;
@@ -137,13 +141,22 @@ public final class CourseRepository {
             if (rs.next()) {
                 return new Course(
                     rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
-                    rs.getString(5), rs.getString(6), rs.getInt(7), rs.getInt(8)
+                    rs.getString(5), rs.getString(6), rs.getInt(7), rs.getInt(8), rs.getBoolean(9)
                 );
             }
             return null;
         } catch (SQLException e) {
             return null;
         }
+    }
+
+    public void setPresenting(String courseId, boolean isPresenting) {
+        try (Connection c = database.connect();
+             PreparedStatement q = c.prepareStatement("UPDATE study_course SET is_presenting = ? WHERE course_id = ?")) {
+            q.setBoolean(1, isPresenting);
+            q.setString(2, courseId);
+            q.executeUpdate();
+        } catch (SQLException ignored) { }
     }
 
     public void updateSlide(String courseId, int slideNumber) {
@@ -300,7 +313,7 @@ public final class CourseRepository {
         }
     }
 
-    public record Course(String id, String code, String title, String description, String ownerUsername, String password, int currentSlide, int memberCount) { }
+    public record Course(String id, String code, String title, String description, String ownerUsername, String password, int currentSlide, int memberCount, boolean isPresenting) { }
     public record Material(String id, String courseId, String title, String fileType, String fileSize, String uploadedBy) { }
     public record Schedule(String id, String courseId, String sessionTitle, String sessionTime, String description) { }
 }

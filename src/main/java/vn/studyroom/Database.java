@@ -103,9 +103,11 @@ public final class Database {
                   description VARCHAR(1000),
                   owner_username VARCHAR(64) NOT NULL REFERENCES app_user(username),
                   current_slide INT DEFAULT 4,
+                  is_presenting BOOLEAN DEFAULT FALSE,
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
                 )
                 """);
+            statement.executeUpdate("ALTER TABLE study_course ADD COLUMN IF NOT EXISTS is_presenting BOOLEAN DEFAULT FALSE");
             statement.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS course_member (
                   course_id VARCHAR(64) NOT NULL REFERENCES study_course(course_id),

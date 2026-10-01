@@ -34,6 +34,7 @@ public final class StudyroomApp extends Application {
     private String activeCourseId;
     private long lastLoadedMessageId = 0;
     private Timer messageSyncTimer;
+    private Timer classroomSyncTimer;
     private Button playButton;
     private Scene scene;
 
@@ -608,6 +609,7 @@ public final class StudyroomApp extends Application {
         Button backBtn = new Button("← Danh sách");
         backBtn.getStyleClass().add("button");
         backBtn.setOnAction(e -> {
+            if (classroomSyncTimer != null) { classroomSyncTimer.cancel(); classroomSyncTimer = null; }
             activeCourseId = null;
             showCourseList();
         });
@@ -665,14 +667,40 @@ public final class StudyroomApp extends Application {
                 tabSchedule.getStyleClass().setAll(currentTab[0] == 2 ? "tab-pill-active" : "tab-pill");
 
                 if (currentTab[0] == 0) {
-                    renderLiveClassroom(course, workspaceArea);
-                } else if (currentTab[0] == 1) {
-                    renderMaterialsTab(course, workspaceArea);
+                    if (classroomSyncTimer != null) classroomSyncTimer.cancel();
+                    classroomSyncTimer = new Timer(true);
+                    classroomSyncTimer.scheduleAtFixedRate(new TimerTask() {
+                        private boolean lastPresenting = course.isPresenting();
+                        private int lastSlide = course.currentSlide();
+                        @Override
+                        public void run() {
+                            if (activeCourseId == null || currentTab[0] != 0) return;
+                            try {
+                                CourseRepository.Course fresh = courseRepo.getCourse(activeCourseId);
+                                if (fresh != null && (fresh.isPresenting() != lastPresenting || fresh.currentSlide() != lastSlide)) {
+                                    lastPresenting = fresh.isPresenting();
+                                    lastSlide = fresh.currentSlide();
+                                    Platform.runLater(() -> {
+                                        if (currentTab[0] == 0) {
+                                            renderLiveClassroom(fresh, workspaceArea, tabMaterials::fire);
+                                        }
+                                    });
+                                }
+                            } catch (Exception ignored) { }
+                        }
+                    }, 2000, 2000);
+
+                    renderLiveClassroom(course, workspaceArea, tabMaterials::fire);
                 } else {
-                    renderScheduleTab(course, workspaceArea, () -> {
-                        currentTab[0] = 0;
-                        tabLive.fire();
-                    });
+                    if (classroomSyncTimer != null) { classroomSyncTimer.cancel(); classroomSyncTimer = null; }
+                    if (currentTab[0] == 1) {
+                        renderMaterialsTab(course, workspaceArea);
+                    } else {
+                        renderScheduleTab(course, workspaceArea, () -> {
+                            currentTab[0] = 0;
+                            tabLive.fire();
+                        });
+                    }
                 }
             }
         };
@@ -687,7 +715,10 @@ public final class StudyroomApp extends Application {
         renderActiveTab.run();
     }
 
-    private void renderLiveClassroom(CourseRepository.Course course, VBox container) {
+    private void renderLiveClassroom(CourseRepository.Course course, VBox container, Runnable onGoToMaterials) {
+        container.getChildren().clear();
+        boolean isHost = course.ownerUsername().equalsIgnoreCase(user.username());
+
         HBox body = new HBox(16);
         VBox.setVgrow(body, Priority.ALWAYS);
 
@@ -700,111 +731,214 @@ public final class StudyroomApp extends Application {
         deck.getStyleClass().add("slide-frame");
         VBox.setVgrow(deck, Priority.ALWAYS);
 
-        // Slide header bar
-        HBox slideHeader = new HBox(14);
-        slideHeader.setAlignment(Pos.CENTER_LEFT);
+        if (!course.isPresenting()) {
+            // STANDBY / NOT PRESENTING STATE
+            HBox standbyHeader = new HBox(10);
+            standbyHeader.setAlignment(Pos.CENTER_LEFT);
+            Label standbyStatus = new Label(isHost ? "Khu vực Trình chiếu của Chủ phòng" : "Màn hình Trình chiếu bài giảng");
+            standbyStatus.setStyle("-fx-font-weight: 800; -fx-font-size: 14px; -fx-text-fill: #4b5563;");
+            Region hgap = new Region();
+            HBox.setHgrow(hgap, Priority.ALWAYS);
+            Label badge = new Label("● Chưa trình chiếu");
+            badge.setStyle("-fx-background-color: #f3f4f6; -fx-text-fill: #6b7280; -fx-font-size: 11px; -fx-font-weight: bold; -fx-padding: 4 10; -fx-background-radius: 8;");
+            standbyHeader.getChildren().addAll(standbyStatus, hgap, badge);
 
-        final int[] slideNumber = {Math.max(1, Math.min(course.currentSlide(), 12))};
+            VBox centerBox = new VBox(18);
+            centerBox.setAlignment(Pos.CENTER);
+            VBox.setVgrow(centerBox, Priority.ALWAYS);
+            centerBox.setPadding(new Insets(30, 40, 30, 40));
 
-        Label slideTitleHeader = new Label("Slide " + slideNumber[0] + ": Phản ứng Este hóa");
-        slideTitleHeader.setStyle("-fx-font-weight: 800; -fx-font-size: 14px; -fx-text-fill: #374151;");
+            Label iconLbl = new Label(isHost ? "🖥️" : "📡");
+            iconLbl.setStyle("-fx-font-size: 50px; -fx-background-color: " + (isHost ? "-violet-soft" : "#f3f4f6") + "; -fx-background-radius: 36; -fx-padding: 16 22;");
 
-        Region navGap = new Region();
-        HBox.setHgrow(navGap, Priority.ALWAYS);
+            if (isHost) {
+                Label titleLbl = new Label("Bạn là chủ phòng của lớp học này");
+                titleLbl.setStyle("-fx-font-size: 20px; -fx-font-weight: 800; -fx-text-fill: -ink;");
 
-        HBox navBox = new HBox(8);
-        navBox.setAlignment(Pos.CENTER);
-        Button prevSlide = new Button("‹");
-        prevSlide.getStyleClass().add("button");
-        prevSlide.setStyle("-fx-font-weight: bold; -fx-padding: 2 10;");
-        Label pageIndicator = new Label(slideNumber[0] + " / 12");
-        pageIndicator.setStyle("-fx-font-weight: 700; -fx-text-fill: #4b5563;");
-        Button nextSlide = new Button("›");
-        nextSlide.getStyleClass().add("button");
-        nextSlide.setStyle("-fx-font-weight: bold; -fx-padding: 2 10;");
-        navBox.getChildren().addAll(prevSlide, pageIndicator, nextSlide);
+                Label descLbl = new Label("Ô trình chiếu bài giảng đang ở trạng thái chờ.\nChỉ khi bạn bấm \"Bắt đầu trình chiếu\", màn hình slide bài giảng mới được phát cho tất cả học viên trong phòng cùng theo dõi.");
+                descLbl.setStyle("-fx-text-fill: -muted; -fx-font-size: 14px; -fx-text-alignment: CENTER; -fx-line-spacing: 4;");
+                descLbl.setWrapText(true);
 
-        Region rightGap = new Region();
-        HBox.setHgrow(rightGap, Priority.ALWAYS);
+                Button startBtn = new Button("🖥️  Bắt đầu trình chiếu");
+                startBtn.getStyleClass().addAll("button", "button-primary");
+                startBtn.setStyle("-fx-font-size: 15px; -fx-padding: 10 26; -fx-font-weight: 800;");
+                startBtn.setOnAction(e -> {
+                    courseRepo.setPresenting(course.id(), true);
+                    CourseRepository.Course updated = courseRepo.getCourse(course.id());
+                    renderLiveClassroom(updated, container, onGoToMaterials);
+                    toast("Đang phát trực tiếp bài giảng cho tất cả thành viên trong phòng.");
+                });
 
-        Label zoom = new Label("100%");
-        zoom.setStyle("-fx-font-size: 13px; -fx-text-fill: #6b7280;");
-        Button fullscreenBtn = new Button("⛶");
-        fullscreenBtn.getStyleClass().add("button");
-        fullscreenBtn.setStyle("-fx-padding: 2 8;");
-        fullscreenBtn.setOnAction(e -> toast("Chế độ toàn màn hình trình chiếu."));
+                HBox subActions = new HBox(12);
+                subActions.setAlignment(Pos.CENTER);
+                Button prepDocBtn = new Button("📚 Xem kho tài liệu");
+                prepDocBtn.getStyleClass().add("button");
+                prepDocBtn.setOnAction(e -> onGoToMaterials.run());
 
-        slideHeader.getChildren().addAll(slideTitleHeader, navGap, navBox, rightGap, zoom, fullscreenBtn);
+                Button testCamBtn = new Button("✏️ Bảng trắng");
+                testCamBtn.getStyleClass().add("button");
+                testCamBtn.setOnAction(e -> toast("Bảng trắng tương tác sẵn sàng khi bắt đầu buổi học."));
 
-        // Slide Content
-        VBox slideContent = new VBox(20);
-        slideContent.setAlignment(Pos.CENTER_LEFT);
-        VBox.setVgrow(slideContent, Priority.ALWAYS);
+                subActions.getChildren().addAll(prepDocBtn, testCamBtn);
 
-        Label mainTitle = new Label("Phản ứng Este hóa");
-        mainTitle.getStyleClass().add("slide-title");
+                centerBox.getChildren().addAll(iconLbl, titleLbl, descLbl, startBtn, subActions);
+            } else {
+                Label titleLbl = new Label("Chờ chủ phòng bắt đầu trình chiếu...");
+                titleLbl.setStyle("-fx-font-size: 20px; -fx-font-weight: 800; -fx-text-fill: -ink;");
 
-        Label introText = new Label("Este được tạo thành từ phản ứng giữa axit cacboxylic và ancol, trong môi trường axit.");
-        introText.setStyle("-fx-font-size: 15px; -fx-text-fill: #4b5563; -fx-line-spacing: 4;");
-        introText.setWrapText(true);
+                Label descLbl = new Label("Chủ phòng (@" + course.ownerUsername() + ") hiện chưa bật chế độ trình chiếu slide bài giảng.\nMàn hình slide sẽ tự động xuất hiện ngay khi chủ phòng bắt đầu phát.");
+                descLbl.setStyle("-fx-text-fill: -muted; -fx-font-size: 14px; -fx-text-alignment: CENTER; -fx-line-spacing: 4;");
+                descLbl.setWrapText(true);
 
-        // Formula Card
-        HBox formulaBox = new HBox();
-        formulaBox.setAlignment(Pos.CENTER);
-        formulaBox.setStyle("-fx-background-color: #1e1e2d; -fx-background-radius: 12; -fx-padding: 18 24;");
-        Label formulaLabel = new Label("R—COOH   +   R'—OH    ⇌    R—COOR'   +   H₂O");
-        formulaLabel.setStyle("-fx-font-family: 'Consolas', 'Courier New', monospace; -fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #f3f4f6;");
-        formulaBox.getChildren().add(formulaLabel);
+                Label waitBadge = new Label("⏳ Đang đợi tín hiệu phát sóng từ chủ phòng...");
+                waitBadge.setStyle("-fx-background-color: #fef3c7; -fx-text-fill: #b45309; -fx-font-size: 12px; -fx-font-weight: bold; -fx-padding: 8 16; -fx-background-radius: 14;");
 
-        // Purple note box
-        VBox noteBox = new VBox(8);
-        noteBox.getStyleClass().add("slide-note-box");
-        Label noteTitle = new Label("Lưu ý");
-        noteTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: 800; -fx-text-fill: #6b21a8;");
-        Label noteItem1 = new Label("•  Phản ứng thuận nghịch");
-        noteItem1.setStyle("-fx-font-size: 14px; -fx-text-fill: #581c87;");
-        Label noteItem2 = new Label("•  Cần môi trường axit và đun nóng");
-        noteItem2.setStyle("-fx-font-size: 14px; -fx-text-fill: #581c87;");
-        noteBox.getChildren().addAll(noteTitle, noteItem1, noteItem2);
+                Button viewDocBtn = new Button("📚 Xem trước Slide & Tài liệu học tập");
+                viewDocBtn.getStyleClass().addAll("button", "button-primary");
+                viewDocBtn.setOnAction(e -> onGoToMaterials.run());
 
-        slideContent.getChildren().addAll(mainTitle, introText, formulaBox, noteBox);
-
-        Runnable updateSlideView = () -> {
-            pageIndicator.setText(slideNumber[0] + " / 12");
-            slideTitleHeader.setText("Slide " + slideNumber[0] + ": " + (slideNumber[0] == 4 ? "Phản ứng Este hóa" : "Chuyên đề Este - Lipit (Phần " + slideNumber[0] + ")"));
-            courseRepo.updateSlide(course.id(), slideNumber[0]);
-        };
-
-        prevSlide.setOnAction(e -> {
-            if (slideNumber[0] > 1) {
-                slideNumber[0]--;
-                updateSlideView.run();
+                centerBox.getChildren().addAll(iconLbl, titleLbl, descLbl, waitBadge, viewDocBtn);
             }
-        });
-        nextSlide.setOnAction(e -> {
-            if (slideNumber[0] < 12) {
-                slideNumber[0]++;
-                updateSlideView.run();
+
+            deck.getChildren().addAll(standbyHeader, centerBox);
+        } else {
+            // PRESENTING STATE (Slide Presentation Deck is ACTIVE)
+            HBox slideHeader = new HBox(14);
+            slideHeader.setAlignment(Pos.CENTER_LEFT);
+
+            final int[] slideNumber = {Math.max(1, Math.min(course.currentSlide(), 12))};
+
+            Label liveBadge = new Label("🔴 ĐANG CHIẾU");
+            liveBadge.setStyle("-fx-background-color: #fee2e2; -fx-text-fill: #dc2626; -fx-font-weight: 800; -fx-font-size: 11px; -fx-padding: 4 8; -fx-background-radius: 6;");
+
+            Label slideTitleHeader = new Label("Slide " + slideNumber[0] + ": Phản ứng Este hóa");
+            slideTitleHeader.setStyle("-fx-font-weight: 800; -fx-font-size: 14px; -fx-text-fill: #374151;");
+
+            Region navGap = new Region();
+            HBox.setHgrow(navGap, Priority.ALWAYS);
+
+            HBox navBox = new HBox(8);
+            navBox.setAlignment(Pos.CENTER);
+            Button prevSlide = new Button("‹");
+            prevSlide.getStyleClass().add("button");
+            prevSlide.setStyle("-fx-font-weight: bold; -fx-padding: 2 10;");
+            Label pageIndicator = new Label(slideNumber[0] + " / 12");
+            pageIndicator.setStyle("-fx-font-weight: 700; -fx-text-fill: #4b5563;");
+            Button nextSlide = new Button("›");
+            nextSlide.getStyleClass().add("button");
+            nextSlide.setStyle("-fx-font-weight: bold; -fx-padding: 2 10;");
+
+            if (!isHost) {
+                prevSlide.setDisable(true);
+                nextSlide.setDisable(true);
+                pageIndicator.setTooltip(new Tooltip("Chủ phòng đang điều khiển chuyển slide"));
             }
-        });
 
-        // Slide Actions
-        HBox slideActions = new HBox(10);
-        Button presentBtn = new Button("🖥️  Trình chiếu");
-        presentBtn.getStyleClass().addAll("button", "button-primary");
-        presentBtn.setOnAction(e -> toast("Đang phát trực tiếp bài giảng cho các thành viên trong phòng."));
+            navBox.getChildren().addAll(prevSlide, pageIndicator, nextSlide);
 
-        Button boardBtn = new Button("✏️  Bảng trắng");
-        boardBtn.getStyleClass().add("button");
-        boardBtn.setOnAction(e -> toast("Mở bảng trắng tương tác trực tiếp."));
+            Region rightGap = new Region();
+            HBox.setHgrow(rightGap, Priority.ALWAYS);
 
-        Button noteBtn = new Button("📄  Ghi chú");
-        noteBtn.getStyleClass().add("button");
-        noteBtn.setOnAction(e -> toast("Ghi chú cá nhân đã lưu."));
+            Label zoom = new Label("100%");
+            zoom.setStyle("-fx-font-size: 13px; -fx-text-fill: #6b7280;");
+            Button fullscreenBtn = new Button("⛶");
+            fullscreenBtn.getStyleClass().add("button");
+            fullscreenBtn.setStyle("-fx-padding: 2 8;");
+            fullscreenBtn.setOnAction(e -> toast("Chế độ toàn màn hình trình chiếu."));
 
-        slideActions.getChildren().addAll(presentBtn, boardBtn, noteBtn);
+            slideHeader.getChildren().addAll(liveBadge, slideTitleHeader, navGap, navBox, rightGap, zoom, fullscreenBtn);
 
-        deck.getChildren().addAll(slideHeader, slideContent, slideActions);
+            // Slide Content
+            VBox slideContent = new VBox(20);
+            slideContent.setAlignment(Pos.CENTER_LEFT);
+            VBox.setVgrow(slideContent, Priority.ALWAYS);
+
+            Label mainTitle = new Label("Phản ứng Este hóa");
+            mainTitle.getStyleClass().add("slide-title");
+
+            Label introText = new Label("Este được tạo thành từ phản ứng giữa axit cacboxylic và ancol, trong môi trường axit.");
+            introText.setStyle("-fx-font-size: 15px; -fx-text-fill: #4b5563; -fx-line-spacing: 4;");
+            introText.setWrapText(true);
+
+            // Formula Card
+            HBox formulaBox = new HBox();
+            formulaBox.setAlignment(Pos.CENTER);
+            formulaBox.setStyle("-fx-background-color: #1e1e2d; -fx-background-radius: 12; -fx-padding: 18 24;");
+            Label formulaLabel = new Label("R—COOH   +   R'—OH    ⇌    R—COOR'   +   H₂O");
+            formulaLabel.setStyle("-fx-font-family: 'Consolas', 'Courier New', monospace; -fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #f3f4f6;");
+            formulaBox.getChildren().add(formulaLabel);
+
+            // Purple note box
+            VBox noteBox = new VBox(8);
+            noteBox.getStyleClass().add("slide-note-box");
+            Label noteTitle = new Label("Lưu ý");
+            noteTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: 800; -fx-text-fill: #6b21a8;");
+            Label noteItem1 = new Label("•  Phản ứng thuận nghịch");
+            noteItem1.setStyle("-fx-font-size: 14px; -fx-text-fill: #581c87;");
+            Label noteItem2 = new Label("•  Cần môi trường axit và đun nóng");
+            noteItem2.setStyle("-fx-font-size: 14px; -fx-text-fill: #581c87;");
+            noteBox.getChildren().addAll(noteTitle, noteItem1, noteItem2);
+
+            slideContent.getChildren().addAll(mainTitle, introText, formulaBox, noteBox);
+
+            Runnable updateSlideView = () -> {
+                pageIndicator.setText(slideNumber[0] + " / 12");
+                slideTitleHeader.setText("Slide " + slideNumber[0] + ": " + (slideNumber[0] == 4 ? "Phản ứng Este hóa" : "Chuyên đề Este - Lipit (Phần " + slideNumber[0] + ")"));
+                courseRepo.updateSlide(course.id(), slideNumber[0]);
+            };
+
+            prevSlide.setOnAction(e -> {
+                if (slideNumber[0] > 1) {
+                    slideNumber[0]--;
+                    updateSlideView.run();
+                }
+            });
+            nextSlide.setOnAction(e -> {
+                if (slideNumber[0] < 12) {
+                    slideNumber[0]++;
+                    updateSlideView.run();
+                }
+            });
+
+            // Slide Actions
+            HBox slideActions = new HBox(10);
+            if (isHost) {
+                Button stopBtn = new Button("⏹️  Dừng trình chiếu");
+                stopBtn.setStyle("-fx-background-color: #fee2e2; -fx-text-fill: #dc2626; -fx-font-weight: 800; -fx-background-radius: 8; -fx-padding: 8 16;");
+                stopBtn.setOnAction(e -> {
+                    courseRepo.setPresenting(course.id(), false);
+                    CourseRepository.Course updated = courseRepo.getCourse(course.id());
+                    renderLiveClassroom(updated, container, onGoToMaterials);
+                    toast("Đã dừng trình chiếu bài giảng.");
+                });
+
+                Button boardBtn = new Button("✏️  Bảng trắng");
+                boardBtn.getStyleClass().add("button");
+                boardBtn.setOnAction(e -> toast("Mở bảng trắng tương tác trực tiếp."));
+
+                Button noteBtn = new Button("📄  Ghi chú");
+                noteBtn.getStyleClass().add("button");
+                noteBtn.setOnAction(e -> toast("Ghi chú cá nhân đã lưu."));
+
+                slideActions.getChildren().addAll(stopBtn, boardBtn, noteBtn);
+            } else {
+                Label hostPresentingLbl = new Label("Chủ phòng @" + course.ownerUsername() + " đang trình chiếu");
+                hostPresentingLbl.setStyle("-fx-text-fill: -muted; -fx-font-size: 13px; -fx-alignment: CENTER_LEFT;");
+                HBox.setHgrow(hostPresentingLbl, Priority.ALWAYS);
+
+                Button handBtn = new Button("🙋  Giơ tay phát biểu");
+                handBtn.getStyleClass().addAll("button");
+                handBtn.setOnAction(e -> toast("Đã giơ tay xin phát biểu với chủ phòng!"));
+
+                Button noteBtn = new Button("📄  Ghi chú cá nhân");
+                noteBtn.getStyleClass().add("button");
+                noteBtn.setOnAction(e -> toast("Mở sổ ghi chú bài giảng cá nhân."));
+
+                slideActions.getChildren().addAll(hostPresentingLbl, handBtn, noteBtn);
+            }
+
+            deck.getChildren().addAll(slideHeader, slideContent, slideActions);
+        }
 
         // BOTTOM DOCK BAR
         HBox dock = new HBox(14);
@@ -836,6 +970,7 @@ public final class StudyroomApp extends Application {
         Button leaveBtn = new Button("🔴 Rời phòng");
         leaveBtn.getStyleClass().addAll("dock-btn-danger");
         leaveBtn.setOnAction(e -> {
+            if (classroomSyncTimer != null) { classroomSyncTimer.cancel(); classroomSyncTimer = null; }
             activeCourseId = null;
             showCourseList();
         });
@@ -1328,6 +1463,10 @@ public final class StudyroomApp extends Application {
         catch (IOException | NumberFormatException e) { toast("Chưa thể nối peer " + peer); }
     }
     private void toast(String message) { Label note = new Label(message); note.getStyleClass().add("toast"); content.getChildren().add(note); }
-    @Override public void stop() { if (node != null) node.close(); }
+    @Override public void stop() {
+        if (node != null) node.close();
+        if (classroomSyncTimer != null) classroomSyncTimer.cancel();
+        if (messageSyncTimer != null) messageSyncTimer.cancel();
+    }
     public static void main(String[] args) { launch(args); }
 }
