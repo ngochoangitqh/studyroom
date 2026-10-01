@@ -51,7 +51,7 @@ public final class CallWindow {
     private final Button speakerBtn = new Button("🔊");
 
     private Timer pollTimer;
-    private final AtomicInteger secondsElapsed = new AtomicInteger(0);
+    private volatile long callStartTimeMs = 0;
     private final AtomicBoolean callAnswered   = new AtomicBoolean(false); // true once ≥2 people in call
 
     private boolean isCameraOn = false;
@@ -211,14 +211,14 @@ public final class CallWindow {
             // Someone just picked up → start timer
             callAnswered.set(true);
             timerLabel.setVisible(true);
-            secondsElapsed.set(0);
+            callStartTimeMs = System.currentTimeMillis();
         }
 
         if (callAnswered.get()) {
-            // Tick the timer
-            int sec  = secondsElapsed.incrementAndGet();
-            int mins = sec / 60;
-            int secs = sec % 60;
+            // Calculate accurate elapsed seconds from start timestamp
+            long elapsedSec = (System.currentTimeMillis() - callStartTimeMs) / 1000;
+            long mins = elapsedSec / 60;
+            long secs = elapsedSec % 60;
             timerLabel.setText(String.format("%02d:%02d", mins, secs));
             statusLabel.setText("Đang đàm thoại (" + list.size() + " người)");
         } else {
@@ -311,7 +311,8 @@ public final class CallWindow {
         localVideoFrame = null;
 
         // Build duration string
-        String duration = formatDuration(secondsElapsed.get());
+        long elapsedSec = callAnswered.get() ? (System.currentTimeMillis() - callStartTimeMs) / 1000 : 0;
+        String duration = formatDuration((int) elapsedSec);
         boolean wasConnected = callAnswered.get();
 
         stage.close();
