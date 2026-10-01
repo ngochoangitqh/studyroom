@@ -27,8 +27,13 @@ public final class CameraEngine {
     private Webcam webcam;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private volatile Consumer<Image> currentCallback;
+    private volatile Consumer<byte[]> rawFrameCallback;
 
     private CameraEngine() { }
+
+    public void setRawFrameCallback(Consumer<byte[]> callback) {
+        this.rawFrameCallback = callback;
+    }
 
     public synchronized void start(Consumer<Image> frameCallback) {
         this.currentCallback = frameCallback;
@@ -48,7 +53,14 @@ public final class CameraEngine {
                         if (bi != null) {
                             ByteArrayOutputStream baos = new ByteArrayOutputStream();
                             ImageIO.write(bi, "jpg", baos);
-                            Image fxImg = new Image(new ByteArrayInputStream(baos.toByteArray()));
+                            byte[] rawBytes = baos.toByteArray();
+
+                            Consumer<byte[]> rcb = rawFrameCallback;
+                            if (rcb != null) {
+                                rcb.accept(rawBytes);
+                            }
+
+                            Image fxImg = new Image(new ByteArrayInputStream(rawBytes));
                             Consumer<Image> cb = currentCallback;
                             if (cb != null) {
                                 Platform.runLater(() -> cb.accept(fxImg));

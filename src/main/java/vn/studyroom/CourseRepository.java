@@ -269,13 +269,17 @@ public final class CourseRepository {
     }
 
     public void heartbeatPresence(String courseId, String username, String displayName, boolean cameraOn, boolean micOn) {
-        heartbeatPresence(courseId, username, displayName, cameraOn, micOn, "", 0, false);
+        heartbeatPresence(courseId, username, displayName, cameraOn, micOn, "", 0, false, 0);
     }
 
     public void heartbeatPresence(String courseId, String username, String displayName, boolean cameraOn, boolean micOn, String ip, int voicePort, boolean speaking) {
+        heartbeatPresence(courseId, username, displayName, cameraOn, micOn, ip, voicePort, speaking, 0);
+    }
+
+    public void heartbeatPresence(String courseId, String username, String displayName, boolean cameraOn, boolean micOn, String ip, int voicePort, boolean speaking, int camPort) {
         String upsert = """
-            INSERT INTO course_online_presence(course_id, username, display_name, camera_on, mic_on, ip, voice_port, speaking, last_seen)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            INSERT INTO course_online_presence(course_id, username, display_name, camera_on, mic_on, ip, voice_port, speaking, cam_port, last_seen)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT (course_id, username)
             DO UPDATE SET display_name = EXCLUDED.display_name,
                           camera_on = EXCLUDED.camera_on,
@@ -283,6 +287,7 @@ public final class CourseRepository {
                           ip = CASE WHEN EXCLUDED.ip <> '' THEN EXCLUDED.ip ELSE course_online_presence.ip END,
                           voice_port = CASE WHEN EXCLUDED.voice_port > 0 THEN EXCLUDED.voice_port ELSE course_online_presence.voice_port END,
                           speaking = EXCLUDED.speaking,
+                          cam_port = CASE WHEN EXCLUDED.cam_port > 0 THEN EXCLUDED.cam_port ELSE course_online_presence.cam_port END,
                           last_seen = CURRENT_TIMESTAMP
         """;
         try (Connection c = database.connect()) {
@@ -295,6 +300,7 @@ public final class CourseRepository {
                 q.setString(6, ip != null ? ip : "");
                 q.setInt(7, voicePort);
                 q.setBoolean(8, speaking);
+                q.setInt(9, camPort);
                 q.executeUpdate();
             }
             try (PreparedStatement q = c.prepareStatement("DELETE FROM course_online_presence WHERE last_seen < CURRENT_TIMESTAMP - INTERVAL '15' SECOND")) {
@@ -315,7 +321,7 @@ public final class CourseRepository {
     public List<OnlineMember> getOnlineMembers(String courseId) {
         List<OnlineMember> list = new ArrayList<>();
         String sql = """
-            SELECT username, display_name, camera_on, mic_on, COALESCE(ip, ''), COALESCE(voice_port, 0), COALESCE(speaking, false)
+            SELECT username, display_name, camera_on, mic_on, COALESCE(ip, ''), COALESCE(voice_port, 0), COALESCE(speaking, false), COALESCE(cam_port, 0)
             FROM course_online_presence
             WHERE course_id = ? AND last_seen >= CURRENT_TIMESTAMP - INTERVAL '15' SECOND
             ORDER BY last_seen ASC
@@ -331,7 +337,8 @@ public final class CourseRepository {
                     rs.getBoolean(4),
                     rs.getString(5),
                     rs.getInt(6),
-                    rs.getBoolean(7)
+                    rs.getBoolean(7),
+                    rs.getInt(8)
                 ));
             }
             return list;
@@ -414,5 +421,5 @@ public final class CourseRepository {
     public record Course(String id, String code, String title, String description, String ownerUsername, String password, int currentSlide, int memberCount, boolean isPresenting, String hostIp, int screenPort) { }
     public record Material(String id, String courseId, String title, String fileType, String fileSize, String uploadedBy) { }
     public record Schedule(String id, String courseId, String sessionTitle, String sessionTime, String description) { }
-    public record OnlineMember(String username, String displayName, boolean cameraOn, boolean micOn, String ip, int voicePort, boolean speaking) { }
+    public record OnlineMember(String username, String displayName, boolean cameraOn, boolean micOn, String ip, int voicePort, boolean speaking, int camPort) { }
 }

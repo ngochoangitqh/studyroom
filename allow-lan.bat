@@ -15,7 +15,7 @@ echo    DANG CAU HINH STUDYROOM DE MAY KHAC TRUY CAP TRONG LAN
 echo ==========================================================
 echo.
 
-echo 1. Mo cong Windows Firewall (5432 - DB, 5050 - Chat, 5100 - Voice)...
+echo 1. Mo cong Windows Firewall (5432 - DB, 5050 - Chat, 5100-5150 - Voice, 5200 - Screen, 5300-5350 - Cam)...
 netsh advfirewall firewall delete rule name="Studyroom PostgreSQL" >nul 2>&1
 netsh advfirewall firewall add rule name="Studyroom PostgreSQL" dir=in action=allow protocol=TCP localport=5432 >nul 2>&1
 
@@ -23,12 +23,15 @@ netsh advfirewall firewall delete rule name="Studyroom Chat P2P" >nul 2>&1
 netsh advfirewall firewall add rule name="Studyroom Chat P2P" dir=in action=allow protocol=TCP localport=5050 >nul 2>&1
 
 netsh advfirewall firewall delete rule name="Studyroom Voice Calling" >nul 2>&1
-netsh advfirewall firewall add rule name="Studyroom Voice Calling" dir=in action=allow protocol=UDP localport=5100 >nul 2>&1
+netsh advfirewall firewall add rule name="Studyroom Voice Calling" dir=in action=allow protocol=UDP localport=5100-5150 >nul 2>&1
 
 netsh advfirewall firewall delete rule name="Studyroom Screen Sharing" >nul 2>&1
 netsh advfirewall firewall add rule name="Studyroom Screen Sharing" dir=in action=allow protocol=TCP localport=5200 >nul 2>&1
 
-echo [OK] Da mo thanh cong cac cong Firewall (5432, 5050, 5100, 5200)!
+netsh advfirewall firewall delete rule name="Studyroom Camera Streaming" >nul 2>&1
+netsh advfirewall firewall add rule name="Studyroom Camera Streaming" dir=in action=allow protocol=UDP localport=5300-5350 >nul 2>&1
+
+echo [OK] Da mo thanh cong cac cong Firewall (5432, 5050, 5100-5150, 5200, 5300-5350)!
 echo.
 
 echo 2. Khoi dong lai dich vu PostgreSQL...
