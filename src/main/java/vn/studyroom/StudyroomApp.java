@@ -131,8 +131,8 @@ public final class StudyroomApp extends Application {
     }
     private VBox sidebar() {
         VBox bar = new VBox(12); bar.getStyleClass().add("sidebar");
-        Label logo = new Label("◉  Studyroom"); logo.getStyleClass().add("brand");
-        Button chat = nav("☷", "Trò chuyện", this::showChat); Button room = nav("◉", "Phòng chung", this::showRoom); Button music = nav("♫", "Nghe nhạc", this::showMusic); Button profile = nav("◎", "Hồ sơ", this::showProfile);
+        Label logo = new Label("✨  Studyroom"); logo.getStyleClass().add("brand");
+        Button chat = nav("💬", "Trò chuyện", this::showChat); Button room = nav("👥", "Phòng chung", this::showRoom); Button music = nav("🎵", "Nghe nhạc", this::showMusic); Button profile = nav("👤", "Hồ sơ", this::showProfile);
         Region gap = new Region(); VBox.setVgrow(gap, Priority.ALWAYS);
         HBox meBox = new HBox(10);
         meBox.setAlignment(Pos.CENTER_LEFT);
@@ -159,7 +159,7 @@ public final class StudyroomApp extends Application {
         content.getChildren().clear(); content.getStyleClass().setAll("chat-workspace"); content.setPadding(Insets.EMPTY); content.setSpacing(0);
         VBox threads = new VBox(8); threads.getStyleClass().add("thread-list"); threads.setPrefWidth(380); threads.setMinWidth(320);
         HBox threadTitle = new HBox(); threadTitle.getStyleClass().add("thread-title-row"); Label title = new Label("Trò chuyện"); title.getStyleClass().add("chat-page-title"); Region titlePush = new Region(); HBox.setHgrow(titlePush, Priority.ALWAYS); Button create = iconButton("✎", "Tạo nhóm mới"); create.setOnAction(e -> createGroup()); threadTitle.getChildren().addAll(title, titlePush, create);
-        TextField find = new TextField(); find.setPromptText("⌕  Tìm kiếm cuộc trò chuyện..."); find.getStyleClass().add("chat-search");
+        TextField find = new TextField(); find.setPromptText("🔍  Tìm kiếm cuộc trò chuyện..."); find.getStyleClass().add("chat-search");
         HBox filters = new HBox(8, chip("Tất cả", true), chip("Nhóm", false), chip("Cá nhân", false), chip("Chưa đọc", false)); filters.getStyleClass().add("chat-filters");
         VBox threadItems = new VBox(2); threadItems.getStyleClass().add("thread-items");
         List<ChatRepository.Room> rooms = chatRepository.roomsFor(user.username());
@@ -210,7 +210,7 @@ public final class StudyroomApp extends Application {
         
         VBox groupCopy = new VBox(2); Label groupName = new Label(conversationName); groupName.getStyleClass().add("group-name"); Label groupMeta = new Label(metaText); groupMeta.getStyleClass().add("group-meta"); groupCopy.getChildren().addAll(groupName, groupMeta); Region push = new Region(); HBox.setHgrow(push, Priority.ALWAYS);
         Button addMember = iconButton("＋", "Thêm thành viên"); if (group) addMember.setOnAction(e -> showAddMemberDialog(roomId, conversationName)); else addMember.setVisible(false);
-        Button call = iconButton("☎", "Gọi thoại"); Button video = iconButton("📹", "Bật video"); Button search = iconButton("⌕", "Tìm trong trò chuyện"); Button more = iconButton("•••", "Thông tin cuộc trò chuyện");
+        Button call = iconButton("📞", "Gọi thoại"); Button video = iconButton("📹", "Bật video"); Button search = iconButton("🔍", "Tìm trong trò chuyện"); Button more = iconButton("⋯", "Thông tin cuộc trò chuyện");
         call.setOnAction(e -> startOrJoinCall(roomId, conversationName, group ? "GROUP" : "DIRECT", false));
         video.setOnAction(e -> startOrJoinCall(roomId, conversationName, group ? "GROUP" : "DIRECT", true));
         head.getChildren().addAll(groupAvatar, groupCopy, push, addMember, call, video, search, more);
@@ -296,7 +296,7 @@ public final class StudyroomApp extends Application {
         });
 
         ContextMenu attachMenu = new ContextMenu();
-        MenuItem sendImgItem = new MenuItem("🖼️  Gửi hình ảnh...");
+        MenuItem sendImgItem = new MenuItem("📷  Gửi hình ảnh...");
         sendImgItem.setOnAction(e -> handleSendImage(roomId, scroll));
         MenuItem sendFileItem = new MenuItem("📎  Gửi tệp tài liệu...");
         sendFileItem.setOnAction(e -> handleSendFile(roomId, scroll));
@@ -348,7 +348,7 @@ public final class StudyroomApp extends Application {
             if (b != null && b.startsWith("[STICKER:")) {
                 previewText = latest.getFirst().sender() + ": 🎨 [Icon màu sắc]";
             } else if (b != null && b.startsWith("[IMAGE:")) {
-                previewText = latest.getFirst().sender() + ": 🖼️ [Hình ảnh]";
+                previewText = latest.getFirst().sender() + ": 📷 [Hình ảnh]";
             } else if (b != null && b.startsWith("[FILE:")) {
                 String fn = "Tệp tin";
                 try {
@@ -499,15 +499,15 @@ public final class StudyroomApp extends Application {
         HBox quickActions = new HBox(20);
         quickActions.setAlignment(Pos.CENTER);
         VBox muteBtn = quickActionItem("🔔", "Tắt thông báo", () -> toast("Đã chuyển đổi thông báo cuộc trò chuyện"));
-        VBox searchBtn = quickActionItem("⌕", "Tìm kiếm", () -> toast("Tìm kiếm trong trò chuyện"));
+        VBox searchBtn = quickActionItem("🔍", "Tìm kiếm", () -> toast("Tìm kiếm trong trò chuyện"));
         quickActions.getChildren().addAll(muteBtn, searchBtn);
 
         VBox headerBox = new VBox(10, avatarPane, nameLbl, metaLbl, spacer(4), quickActions);
         headerBox.setAlignment(Pos.CENTER);
 
         VBox customSection = createInfoSection("Tùy chỉnh đoạn chat", List.of(
-            group ? createSectionButton("🖼️  Đổi ảnh đại diện nhóm", e -> showChangeGroupAvatarDialog(roomId, conversationName)) : createSectionButton("📷  Đổi ảnh đại diện cá nhân", e -> showChangeUserAvatarDialog()),
-            group ? createSectionButton("✏️  Đổi tên nhóm", e -> showRenameGroupDialog(roomId, conversationName)) : null
+            group ? createSectionButton("📷  Đổi ảnh đại diện nhóm", e -> showChangeGroupAvatarDialog(roomId, conversationName)) : createSectionButton("📷  Đổi ảnh đại diện cá nhân", e -> showChangeUserAvatarDialog()),
+            group ? createSectionButton("✎  Đổi tên nhóm", e -> showRenameGroupDialog(roomId, conversationName)) : null
         ));
 
         VBox membersSection = null;
@@ -547,7 +547,7 @@ public final class StudyroomApp extends Application {
 
     private VBox quickActionItem(String icon, String text, Runnable action) {
         Button btn = new Button(icon);
-        btn.setStyle("-fx-background-color: #f3f4f6; -fx-background-radius: 50%; -fx-min-width: 38px; -fx-min-height: 38px; -fx-max-width: 38px; -fx-max-height: 38px; -fx-font-size: 16px; -fx-cursor: hand;");
+        btn.getStyleClass().add("action-circle-btn");
         btn.setOnAction(e -> action.run());
         Label lbl = new Label(text);
         lbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #4b5563; -fx-text-alignment: center;");
@@ -582,11 +582,9 @@ public final class StudyroomApp extends Application {
 
     private Button createSectionButton(String text, javafx.event.EventHandler<javafx.event.ActionEvent> handler) {
         Button btn = new Button(text);
-        btn.setStyle("-fx-background-color: transparent; -fx-text-fill: #1f2937; -fx-font-size: 13px; -fx-alignment: CENTER_LEFT; -fx-cursor: hand; -fx-padding: 6 8;");
+        btn.getStyleClass().add("info-section-btn");
         btn.setMaxWidth(Double.MAX_VALUE);
         btn.setOnAction(handler);
-        btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: #f3f4f6; -fx-text-fill: #1f2937; -fx-font-size: 13px; -fx-alignment: CENTER_LEFT; -fx-cursor: hand; -fx-padding: 6 8; -fx-background-radius: 6;"));
-        btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: transparent; -fx-text-fill: #1f2937; -fx-font-size: 13px; -fx-alignment: CENTER_LEFT; -fx-cursor: hand; -fx-padding: 6 8;"));
         return btn;
     }
 
@@ -734,11 +732,11 @@ public final class StudyroomApp extends Application {
                     bubble.setStyle("-fx-background-color: transparent; -fx-padding: 0;");
                     bubble.getChildren().addAll(imgBox, time);
                 } catch (Exception ex) {
-                    Label err = new Label("🖼️ [Lỗi hiển thị ảnh: " + fileName + "]");
+                    Label err = new Label("📷 [Lỗi hiển thị ảnh: " + fileName + "]");
                     bubble.getChildren().addAll(err, time);
                 }
             } else {
-                Label missing = new Label("🖼️ [Hình ảnh: " + fileName + "]");
+                Label missing = new Label("📷 [Hình ảnh: " + fileName + "]");
                 bubble.getChildren().addAll(missing, time);
             }
         } else if (text != null && text.startsWith("[FILE:") && text.endsWith("]")) {
@@ -760,7 +758,7 @@ public final class StudyroomApp extends Application {
             else if (lowerName.endsWith(".doc") || lowerName.endsWith(".docx")) fileIcon = "📘";
             else if (lowerName.endsWith(".xls") || lowerName.endsWith(".xlsx")) fileIcon = "📗";
             else if (lowerName.endsWith(".ppt") || lowerName.endsWith(".pptx")) fileIcon = "📙";
-            else if (lowerName.endsWith(".zip") || lowerName.endsWith(".rar") || lowerName.endsWith(".7z")) fileIcon = "🗜️";
+            else if (lowerName.endsWith(".zip") || lowerName.endsWith(".rar") || lowerName.endsWith(".7z")) fileIcon = "📦";
             else if (lowerName.endsWith(".mp3") || lowerName.endsWith(".wav")) fileIcon = "🎵";
             else if (lowerName.endsWith(".mp4") || lowerName.endsWith(".mkv")) fileIcon = "🎬";
 
@@ -986,19 +984,19 @@ public final class StudyroomApp extends Application {
         VBox textContainer = new VBox(8);
         String[][] categories = {
             {"Cảm xúc", "😀,😃,😄,😁,😆,😅,😂,🤣,😊,😇,🙂,🙃,😉,😌,😍,🥰,😘,😋,😛,😜,🤪,😝,🤗,🤭,🤔,🤫,🤐,🤨,😐,😑,😶,😏,😒,🙄,😬,😴,😷,🤯,🥳,😎"},
-            {"Cử chỉ & Tim", "👍,👎,👏,🙌,🤝,✌️,🤞,🤟,🤙,👈,👉,👆,👇,☝️,✋,🙏,❤️,🧡,💛,💚,💙,💜,🖤,💔,❣️,💕,💞,💓,💗,💖,💘,✨,🔥,🌟,⭐,💯,🎉,🎊,🚀,💡"},
-            {"Học tập & Đồ vật", "📚,📖,📝,✏️,🖊️,🎓,🎒,💻,🖥️,📱,📊,📈,📅,🕒,⏰,🏆,🥇,🎯,📌,📎,☕,🍕,🍔,🍰,🎁,⚽,🏀,🎨,🎵,🎶,🔔,📣,🔍,🔒,🔑,✅,❌,⚠️,❓,❗"}
+            {"Cử chỉ & Tim", "👍,👎,👏,🙌,🤝,✌,🤞,🤟,🤙,👈,👉,👆,👇,☝,✋,🙏,❤,🧡,💛,💚,💙,💜,🖤,💔,❣,💕,💞,💓,💗,💖,💘,✨,🔥,🌟,⭐,💯,🎉,🎊,🚀,💡"},
+            {"Học tập & Đồ vật", "📚,📖,📝,✏,🖊,🎓,🎒,💻,📱,📊,📈,📅,🕒,⏰,🏆,🥇,🎯,📌,📎,☕,🍕,🍔,🍰,🎁,⚽,🏀,🎨,🎵,🎶,🔔,📣,🔍,🔒,🔑,✅,❌,⚠,❓,❗"}
         };
         for (String[] cat : categories) {
             Label catLabel = new Label(cat[0]);
             catLabel.setStyle("-fx-font-size: 11px; -fx-font-weight: 700; -fx-text-fill: #6b7280; -fx-padding: 2 0 0 0;");
             FlowPane flow = new FlowPane(4, 4);
             flow.setPrefWrapLength(320);
-            for (String em : cat[1].split(",")) {
+            for (String em : cat[1].replace("\uFE0F", "").split(",")) {
                 Button btn = new Button(em);
-                btn.setStyle("-fx-background-color: transparent; -fx-font-size: 18px; -fx-padding: 4 6; -fx-cursor: hand; -fx-background-radius: 6;");
-                btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: #f3f4f6; -fx-font-size: 18px; -fx-padding: 4 6; -fx-cursor: hand; -fx-background-radius: 6;"));
-                btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: transparent; -fx-font-size: 18px; -fx-padding: 4 6; -fx-cursor: hand; -fx-background-radius: 6;"));
+                btn.setStyle("-fx-background-color: transparent; -fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-font-size: 18px; -fx-padding: 4 6; -fx-cursor: hand; -fx-background-radius: 6;");
+                btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: #f3f4f6; -fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-font-size: 18px; -fx-padding: 4 6; -fx-cursor: hand; -fx-background-radius: 6;"));
+                btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: transparent; -fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-font-size: 18px; -fx-padding: 4 6; -fx-cursor: hand; -fx-background-radius: 6;"));
                 btn.setOnAction(e -> {
                     int caret = targetField.getCaretPosition();
                     String cur = targetField.getText();
@@ -1866,7 +1864,7 @@ public final class StudyroomApp extends Application {
         // Sub Tabs
         HBox tabs = new HBox(8);
         tabs.setPadding(new Insets(10, 0, 14, 0));
-        Button tabLive = new Button("🖥️ Phòng học trực tuyến");
+        Button tabLive = new Button("💻 Phòng học trực tuyến");
         Button tabMaterials = new Button("📚 Slide & Tài liệu học tập");
         Button tabSchedule = new Button("📅 Lịch học");
 
@@ -2041,7 +2039,7 @@ public final class StudyroomApp extends Application {
             VBox.setVgrow(centerBox, Priority.ALWAYS);
             centerBox.setPadding(new Insets(30, 40, 30, 40));
 
-            Label iconLbl = new Label(isHost ? "🖥️" : "📡");
+            Label iconLbl = new Label(isHost ? "💻" : "📡");
             iconLbl.setStyle("-fx-font-size: 50px; -fx-background-color: " + (isHost ? "-violet-soft" : "#f3f4f6") + "; -fx-background-radius: 36; -fx-padding: 16 22;");
 
             if (isHost) {
@@ -2052,7 +2050,7 @@ public final class StudyroomApp extends Application {
                 descLbl.setStyle("-fx-text-fill: -muted; -fx-font-size: 14px; -fx-text-alignment: CENTER; -fx-line-spacing: 4;");
                 descLbl.setWrapText(true);
 
-                Button startBtn = new Button("🖥️  Bắt đầu chia sẻ màn hình");
+                Button startBtn = new Button("💻  Bắt đầu chia sẻ màn hình");
                 startBtn.getStyleClass().addAll("button", "button-primary");
                 startBtn.setStyle("-fx-font-size: 15px; -fx-padding: 10 26; -fx-font-weight: 800;");
                 startBtn.setOnAction(e -> {
@@ -2070,7 +2068,7 @@ public final class StudyroomApp extends Application {
                 prepDocBtn.getStyleClass().add("button");
                 prepDocBtn.setOnAction(e -> onGoToMaterials.run());
 
-                Button testBoardBtn = new Button("✏️ Bảng trắng");
+                Button testBoardBtn = new Button("✎ Bảng trắng");
                 testBoardBtn.getStyleClass().add("button");
                 testBoardBtn.setOnAction(e -> toast("Bảng trắng tương tác sẵn sàng khi bắt đầu buổi học."));
 
@@ -2177,7 +2175,7 @@ public final class StudyroomApp extends Application {
             streamActions.setMinHeight(34);
 
             if (isHost) {
-                Button stopBtn = new Button("⏹️  Dừng chia sẻ màn hình");
+                Button stopBtn = new Button("■  Dừng chia sẻ màn hình");
                 stopBtn.setStyle("-fx-background-color: #fee2e2; -fx-text-fill: #dc2626; -fx-font-weight: 800; -fx-background-radius: 8; -fx-padding: 6 14; -fx-cursor: hand;");
                 stopBtn.setOnAction(e -> {
                     courseRepo.stopScreenShare(course.id());
@@ -2199,7 +2197,7 @@ public final class StudyroomApp extends Application {
                 docBtn.setStyle("-fx-padding: 6 12; -fx-font-size: 12px;");
                 docBtn.setOnAction(e -> onGoToMaterials.run());
 
-                Button boardBtn = new Button("✏️  Bảng trắng");
+                Button boardBtn = new Button("✎  Bảng trắng");
                 boardBtn.getStyleClass().add("button");
                 boardBtn.setStyle("-fx-padding: 6 12; -fx-font-size: 12px;");
                 boardBtn.setOnAction(e -> {});
@@ -2243,12 +2241,12 @@ public final class StudyroomApp extends Application {
         dock.setMaxHeight(50);
 
         // Nút Mic
-        Button micBtn = new Button(isMicOn ? "🎙️ Mic" : "🔇 Mic");
+        Button micBtn = new Button(isMicOn ? "🎤 Mic" : "🔇 Mic");
         micBtn.getStyleClass().setAll(isMicOn ? "dock-btn" : "dock-btn-danger");
         micBtn.setOnAction(e -> {
             isMicOn = !isMicOn;
             classroomVoice.setMuted(!isMicOn);
-            micBtn.setText(isMicOn ? "🎙️ Mic" : "🔇 Mic");
+            micBtn.setText(isMicOn ? "🎤 Mic" : "🔇 Mic");
             micBtn.getStyleClass().setAll(isMicOn ? "dock-btn" : "dock-btn-danger");
             courseRepo.heartbeatPresence(course.id(), user.username(), user.displayName(), isCameraOn, isMicOn, myVoiceIp, myVoicePort, isLocalSpeaking, myCameraPort);
             Runnable myCb = tileSpeakingUpdateCallbacks.get(user.username());
@@ -2283,7 +2281,7 @@ public final class StudyroomApp extends Application {
             renderLiveClassroom(fresh, container, onGoToMaterials);
         });
 
-        Button shareScreenBtn = new Button(course.isPresenting() && isHost ? "⏹️ Dừng share" : "🖥️ Chia sẻ");
+        Button shareScreenBtn = new Button(course.isPresenting() && isHost ? "■ Dừng share" : "💻 Chia sẻ");
         shareScreenBtn.getStyleClass().setAll(course.isPresenting() && isHost ? "dock-btn-danger" : "dock-btn");
         shareScreenBtn.setOnAction(e -> {
             if (isHost) {
@@ -2451,7 +2449,7 @@ public final class StudyroomApp extends Application {
                         tile.setStyle("-fx-background-color: #1c1d2b; -fx-background-radius: 12; -fx-padding: 8 10; -fx-border-color: #3b3d5b; -fx-border-width: 1.5; -fx-border-radius: 12; -fx-effect: null;");
                         avatar.setStyle("-fx-background-color: #6366f1; -fx-background-radius: 14; -fx-alignment: center;");
                         if (isMicOn) {
-                            statusBadge.setText("🎙️ Mic bật");
+                            statusBadge.setText("🎤 Mic bật");
                             statusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #94a3b8; -fx-font-weight: bold; -fx-background-color: #25283d; -fx-padding: 2 6; -fx-background-radius: 4;");
                         } else {
                             statusBadge.setText("🔇 Mic tắt");
@@ -2575,7 +2573,7 @@ public final class StudyroomApp extends Application {
                         aStatusBadge.setText("📹 Đang kết nối cam...");
                         aStatusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #60a5fa; -fx-font-weight: bold; -fx-background-color: #1e293b; -fx-padding: 2 6; -fx-background-radius: 4;");
                     } else if (m.micOn()) {
-                        aStatusBadge.setText("🎙️ Mic bật");
+                        aStatusBadge.setText("🎤 Mic bật");
                         aStatusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #94a3b8; -fx-font-weight: bold; -fx-background-color: #25283d; -fx-padding: 2 6; -fx-background-radius: 4;");
                     } else {
                         aStatusBadge.setText("🔇 Mic tắt");
@@ -2642,8 +2640,8 @@ public final class StudyroomApp extends Application {
                     case "PPT", "PPTX", "SLIDE" -> "📑";
                     case "DOC", "DOCX" -> "📘";
                     case "XLS", "XLSX" -> "📗";
-                    case "ZIP", "RAR", "7Z" -> "🗜️";
-                    case "PNG", "JPG", "JPEG" -> "🖼️";
+                    case "ZIP", "RAR", "7Z" -> "📦";
+                    case "PNG", "JPG", "JPEG" -> "📷";
                     case "EXAM" -> "📝";
                     default -> "📁";
                 };
@@ -3037,8 +3035,8 @@ public final class StudyroomApp extends Application {
                         case "PPT", "PPTX" -> "📑";
                         case "DOC", "DOCX" -> "📘";
                         case "XLS", "XLSX" -> "📗";
-                        case "ZIP", "RAR" -> "🗜️";
-                        case "PNG", "JPG", "JPEG" -> "🖼️";
+                        case "ZIP", "RAR" -> "📦";
+                        case "PNG", "JPG", "JPEG" -> "📷";
                         default -> "📄";
                     };
                     previewIcon.setText(pIcon);
@@ -3344,11 +3342,11 @@ public final class StudyroomApp extends Application {
         zoomLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: 700; -fx-text-fill: #374151;");
         Slider zoomSlider = new Slider(1.0, 3.0, 1.0);
 
-        Label posXLabel = new Label("↔️  Vị trí ngang (Trái / Phải)");
+        Label posXLabel = new Label("↔  Vị trí ngang (Trái / Phải)");
         posXLabel.setStyle("-fx-font-size: 11px; -fx-font-weight: 600; -fx-text-fill: #4b5563;");
         Slider posXSlider = new Slider(-100, 100, 0);
 
-        Label posYLabel = new Label("↕️  Vị trí dọc (Trên / Dưới)");
+        Label posYLabel = new Label("↕  Vị trí dọc (Trên / Dưới)");
         posYLabel.setStyle("-fx-font-size: 11px; -fx-font-weight: 600; -fx-text-fill: #4b5563;");
         Slider posYSlider = new Slider(-100, 100, 0);
 
