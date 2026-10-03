@@ -432,24 +432,14 @@ public final class StudyroomApp extends Application {
         javafx.scene.shape.Circle clipCircle = new javafx.scene.shape.Circle(radius, radius, radius);
 
         StackPane container = new StackPane(iv);
+        container.getStyleClass().add("avatar");
+        container.setStyle("-fx-background-color: transparent;");
         container.setMinSize(size, size);
         container.setMaxSize(size, size);
         container.setPrefSize(size, size);
         container.setAlignment(Pos.CENTER);
         container.setClip(clipCircle);
-
-        javafx.scene.shape.Circle border = new javafx.scene.shape.Circle(radius);
-        border.setFill(null);
-        border.setStroke(javafx.scene.paint.Color.web("#6366f1", 0.5));
-        border.setStrokeWidth(Math.max(1.5, size * 0.035));
-
-        StackPane avatarPane = new StackPane(container, border);
-        avatarPane.getStyleClass().addAll("avatar", style);
-        avatarPane.setMinSize(size, size);
-        avatarPane.setMaxSize(size, size);
-        avatarPane.setPrefSize(size, size);
-        avatarPane.setAlignment(Pos.CENTER);
-        return avatarPane;
+        return container;
     }
 
     private StackPane avatar(String initials, String style, double size) {
@@ -457,26 +447,16 @@ public final class StudyroomApp extends Application {
         mark.getStyleClass().add("avatar-text");
         mark.setStyle("-fx-font-size: " + (int)(size * 0.38) + "px; -fx-font-weight: 800;");
 
-        StackPane inner = new StackPane(mark);
-        inner.getStyleClass().addAll("avatar", style);
-        inner.setMinSize(size, size);
-        inner.setMaxSize(size, size);
-        inner.setPrefSize(size, size);
-
-        double radius = size / 2.0;
-        javafx.scene.shape.Circle clipCircle = new javafx.scene.shape.Circle(radius, radius, radius);
-        inner.setClip(clipCircle);
-
-        javafx.scene.shape.Circle border = new javafx.scene.shape.Circle(radius);
-        border.setFill(null);
-        border.setStroke(javafx.scene.paint.Color.web("#6366f1", 0.3));
-        border.setStrokeWidth(Math.max(1.5, size * 0.035));
-
-        StackPane avatarPane = new StackPane(inner, border);
+        StackPane avatarPane = new StackPane(mark);
+        avatarPane.getStyleClass().addAll("avatar", style);
         avatarPane.setMinSize(size, size);
         avatarPane.setMaxSize(size, size);
         avatarPane.setPrefSize(size, size);
         avatarPane.setAlignment(Pos.CENTER);
+
+        double radius = size / 2.0;
+        javafx.scene.shape.Circle clipCircle = new javafx.scene.shape.Circle(radius, radius, radius);
+        avatarPane.setClip(clipCircle);
         return avatarPane;
     }
 
@@ -492,14 +472,19 @@ public final class StudyroomApp extends Application {
         container.setStyle("-fx-background-color: #ffffff; -fx-border-color: #e5e7eb; -fx-border-width: 0 0 0 1; -fx-padding: 24 16;");
         container.setAlignment(Pos.TOP_CENTER);
 
-        StackPane avatarPane = group ? groupAvatar(roomId, conversationName, "avatar-group", 80)
+        StackPane avatarNode = group ? groupAvatar(roomId, conversationName, "avatar-group", 80)
                                       : userAvatar(targetUsername != null ? targetUsername : conversationName, initials(conversationName), "avatar-person", 80);
-        avatarPane.setCursor(javafx.scene.Cursor.HAND);
         
         Label camBadge = new Label("📷");
-        camBadge.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-background-color: #6366f1; -fx-text-fill: white; -fx-font-size: 11px; -fx-padding: 3 6; -fx-background-radius: 10;");
+        camBadge.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-background-color: #6366f1; -fx-text-fill: white; -fx-font-size: 11px; -fx-padding: 3 6; -fx-background-radius: 10; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 3, 0, 0, 1);");
         StackPane.setAlignment(camBadge, Pos.BOTTOM_RIGHT);
-        avatarPane.getChildren().add(camBadge);
+
+        StackPane avatarPane = new StackPane(avatarNode, camBadge);
+        avatarPane.setMinSize(80, 80);
+        avatarPane.setMaxSize(80, 80);
+        avatarPane.setPrefSize(80, 80);
+        avatarPane.setAlignment(Pos.CENTER);
+        avatarPane.setCursor(javafx.scene.Cursor.HAND);
 
         if (group) {
             Tooltip.install(avatarPane, new Tooltip("Nhấp để đổi ảnh đại diện nhóm"));

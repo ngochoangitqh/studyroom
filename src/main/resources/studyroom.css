@@ -41,7 +41,7 @@
 .thread-preview { -fx-font-size: 11px; -fx-text-fill: -muted; -fx-max-width: 200; }
 .thread-time { -fx-font-size: 12px; -fx-text-fill: -muted; }
 .unread-badge { -fx-background-color: -violet; -fx-text-fill: -on-accent; -fx-background-radius: 12; -fx-padding: 3 8; -fx-font-size: 11px; -fx-font-weight: 800; }
-.avatar { -fx-background-radius: 20; -fx-alignment: CENTER; }
+.avatar { -fx-background-radius: 999; -fx-alignment: CENTER; }
 .avatar-text { -fx-text-fill: -on-accent; -fx-font-size: 11px; -fx-font-weight: 800; }
 .avatar-group { -fx-background-color: -avatar-indigo; }
 .avatar-person { -fx-background-color: -avatar-pink; }
