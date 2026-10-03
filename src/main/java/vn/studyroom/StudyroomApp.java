@@ -148,7 +148,20 @@ public final class StudyroomApp extends Application {
         meBox.setOnMouseClicked(e -> showProfile());
         bar.getChildren().addAll(logo, spacer(18), chat, room, music, profile, gap, meBox); return bar;
     }
-    private Button nav(String icon, String label, Runnable action) { Button b = new Button(icon + "   " + label); b.getStyleClass().add("nav-item"); b.setMaxWidth(Double.MAX_VALUE); b.setOnAction(e -> action.run()); return b; }
+    private Button nav(String icon, String label, Runnable action) {
+        Label iconNode = new Label(icon);
+        iconNode.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-font-size: 15px; -fx-min-width: 22px;");
+        Label textNode = new Label(label);
+        textNode.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: -ink;");
+        HBox row = new HBox(8, iconNode, textNode);
+        row.setAlignment(Pos.CENTER_LEFT);
+        Button b = new Button();
+        b.setGraphic(row);
+        b.getStyleClass().add("nav-item");
+        b.setMaxWidth(Double.MAX_VALUE);
+        b.setOnAction(e -> action.run());
+        return b;
+    }
     private Region spacer(double h) { Region r = new Region(); r.setMinHeight(h); return r; }
     private void base(String title, String caption) { content.getChildren().clear(); content.getStyleClass().setAll("workspace"); content.setPadding(new Insets(26, 30, 20, 30)); Label h = new Label(title); h.getStyleClass().add("page-title"); Label c = new Label(caption); c.getStyleClass().add("muted"); content.getChildren().addAll(h, c, spacer(18)); }
 
@@ -159,7 +172,16 @@ public final class StudyroomApp extends Application {
         content.getChildren().clear(); content.getStyleClass().setAll("chat-workspace"); content.setPadding(Insets.EMPTY); content.setSpacing(0);
         VBox threads = new VBox(8); threads.getStyleClass().add("thread-list"); threads.setPrefWidth(380); threads.setMinWidth(320);
         HBox threadTitle = new HBox(); threadTitle.getStyleClass().add("thread-title-row"); Label title = new Label("Trò chuyện"); title.getStyleClass().add("chat-page-title"); Region titlePush = new Region(); HBox.setHgrow(titlePush, Priority.ALWAYS); Button create = iconButton("✎", "Tạo nhóm mới"); create.setOnAction(e -> createGroup()); threadTitle.getChildren().addAll(title, titlePush, create);
-        TextField find = new TextField(); find.setPromptText("🔍  Tìm kiếm cuộc trò chuyện..."); find.getStyleClass().add("chat-search");
+        HBox searchBox = new HBox(8);
+        searchBox.getStyleClass().add("chat-search");
+        searchBox.setAlignment(Pos.CENTER_LEFT);
+        Label searchIcon = new Label("🔍");
+        searchIcon.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-font-size: 13px; -fx-opacity: 0.65;");
+        TextField find = new TextField();
+        find.setPromptText("Tìm kiếm cuộc trò chuyện...");
+        find.setStyle("-fx-background-color: transparent; -fx-padding: 0; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px;");
+        HBox.setHgrow(find, Priority.ALWAYS);
+        searchBox.getChildren().addAll(searchIcon, find);
         HBox filters = new HBox(8, chip("Tất cả", true), chip("Nhóm", false), chip("Cá nhân", false), chip("Chưa đọc", false)); filters.getStyleClass().add("chat-filters");
         VBox threadItems = new VBox(2); threadItems.getStyleClass().add("thread-items");
         List<ChatRepository.Room> rooms = chatRepository.roomsFor(user.username());
@@ -189,7 +211,7 @@ public final class StudyroomApp extends Application {
         Button addFriendBtn = new Button("＋  Kết bạn"); addFriendBtn.getStyleClass().addAll("button"); addFriendBtn.setMaxWidth(Double.MAX_VALUE);
         addFriendBtn.setOnAction(e -> showAddFriendDialog());
         threadItems.getChildren().add(addFriendBtn);
-        ScrollPane threadScroll = new ScrollPane(threadItems); threadScroll.setFitToWidth(true); threadScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER); threadScroll.getStyleClass().add("thread-scroll"); VBox.setVgrow(threadScroll, Priority.ALWAYS); threads.getChildren().addAll(threadTitle, find, filters, threadScroll);
+        ScrollPane threadScroll = new ScrollPane(threadItems); threadScroll.setFitToWidth(true); threadScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER); threadScroll.getStyleClass().add("thread-scroll"); VBox.setVgrow(threadScroll, Priority.ALWAYS); threads.getChildren().addAll(threadTitle, searchBox, filters, threadScroll);
         VBox conversation = new VBox(); conversation.getStyleClass().add("conversation"); HBox.setHgrow(conversation, Priority.ALWAYS);
         if (roomId == null) { showEmptyConversation(conversation); showChatColumns(threads, conversation, null); return; }
         List<String> memberNames = group ? chatRepository.membersOf(roomId) : List.of();
@@ -506,8 +528,8 @@ public final class StudyroomApp extends Application {
         headerBox.setAlignment(Pos.CENTER);
 
         VBox customSection = createInfoSection("Tùy chỉnh đoạn chat", List.of(
-            group ? createSectionButton("📷  Đổi ảnh đại diện nhóm", e -> showChangeGroupAvatarDialog(roomId, conversationName)) : createSectionButton("📷  Đổi ảnh đại diện cá nhân", e -> showChangeUserAvatarDialog()),
-            group ? createSectionButton("✎  Đổi tên nhóm", e -> showRenameGroupDialog(roomId, conversationName)) : null
+            group ? createSectionButton("📷", "Đổi ảnh đại diện nhóm", e -> showChangeGroupAvatarDialog(roomId, conversationName)) : createSectionButton("📷", "Đổi ảnh đại diện cá nhân", e -> showChangeUserAvatarDialog()),
+            group ? createSectionButton("✎", "Đổi tên nhóm", e -> showRenameGroupDialog(roomId, conversationName)) : null
         ));
 
         VBox membersSection = null;
@@ -522,14 +544,14 @@ public final class StudyroomApp extends Application {
                 mRow.getChildren().addAll(mAvt, mLbl);
                 memberItems.getChildren().add(mRow);
             }
-            Button addMemBtn = createSectionButton("＋  Thêm thành viên", e -> showAddMemberDialog(roomId, conversationName));
+            Button addMemBtn = createSectionButton("＋", "Thêm thành viên", e -> showAddMemberDialog(roomId, conversationName));
             memberItems.getChildren().add(addMemBtn);
 
             membersSection = createInfoSectionContent("Thành viên trong đoạn chat (" + memberNames.size() + ")", memberItems);
         }
 
         VBox privacySection = createInfoSection("Quyền riêng tư & hỗ trợ", List.of(
-            group ? createSectionButton("🚪  Rời khỏi nhóm", e -> leaveGroup(roomId, conversationName)) : null
+            group ? createSectionButton("🚪", "Rời khỏi nhóm", e -> leaveGroup(roomId, conversationName)) : null
         ));
 
         container.getChildren().add(headerBox);
@@ -580,8 +602,15 @@ public final class StudyroomApp extends Application {
         return box;
     }
 
-    private Button createSectionButton(String text, javafx.event.EventHandler<javafx.event.ActionEvent> handler) {
-        Button btn = new Button(text);
+    private Button createSectionButton(String icon, String text, javafx.event.EventHandler<javafx.event.ActionEvent> handler) {
+        Label iconNode = new Label(icon);
+        iconNode.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-font-size: 15px; -fx-min-width: 22px;");
+        Label textNode = new Label(text);
+        textNode.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: #1f2937;");
+        HBox row = new HBox(8, iconNode, textNode);
+        row.setAlignment(Pos.CENTER_LEFT);
+        Button btn = new Button();
+        btn.setGraphic(row);
         btn.getStyleClass().add("info-section-btn");
         btn.setMaxWidth(Double.MAX_VALUE);
         btn.setOnAction(handler);
