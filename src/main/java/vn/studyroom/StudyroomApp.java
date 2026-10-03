@@ -150,7 +150,7 @@ public final class StudyroomApp extends Application {
     }
     private Button nav(String icon, String label, Runnable action) {
         Label iconNode = new Label(icon);
-        iconNode.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-font-size: 15px; -fx-min-width: 22px;");
+        iconNode.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-font-size: 15px; -fx-min-width: 22px; -fx-text-fill: #4b5563;");
         Label textNode = new Label(label);
         textNode.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: -ink;");
         HBox row = new HBox(8, iconNode, textNode);
@@ -176,7 +176,7 @@ public final class StudyroomApp extends Application {
         searchBox.getStyleClass().add("chat-search");
         searchBox.setAlignment(Pos.CENTER_LEFT);
         Label searchIcon = new Label("🔍");
-        searchIcon.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-font-size: 13px; -fx-opacity: 0.65;");
+        searchIcon.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-font-size: 13px; -fx-text-fill: #6b7280;");
         TextField find = new TextField();
         find.setPromptText("Tìm kiếm cuộc trò chuyện...");
         find.setStyle("-fx-background-color: transparent; -fx-padding: 0; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px;");
@@ -497,7 +497,7 @@ public final class StudyroomApp extends Application {
         avatarPane.setCursor(javafx.scene.Cursor.HAND);
         
         Label camBadge = new Label("📷");
-        camBadge.setStyle("-fx-background-color: #6366f1; -fx-text-fill: white; -fx-font-size: 11px; -fx-padding: 3 6; -fx-background-radius: 10;");
+        camBadge.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-background-color: #6366f1; -fx-text-fill: white; -fx-font-size: 11px; -fx-padding: 3 6; -fx-background-radius: 10;");
         StackPane.setAlignment(camBadge, Pos.BOTTOM_RIGHT);
         avatarPane.getChildren().add(camBadge);
 
@@ -568,12 +568,17 @@ public final class StudyroomApp extends Application {
     }
 
     private VBox quickActionItem(String icon, String text, Runnable action) {
-        Button btn = new Button(icon);
+        Label iconLbl = new Label(icon);
+        iconLbl.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-font-size: 16px; -fx-text-fill: #374151;");
+        Button btn = new Button();
+        btn.setGraphic(iconLbl);
         btn.getStyleClass().add("action-circle-btn");
         btn.setOnAction(e -> action.run());
+        btn.setOnMouseEntered(e -> iconLbl.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-font-size: 16px; -fx-text-fill: #6558f5;"));
+        btn.setOnMouseExited(e -> iconLbl.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-font-size: 16px; -fx-text-fill: #374151;"));
         Label lbl = new Label(text);
-        lbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #4b5563; -fx-text-alignment: center;");
-        VBox box = new VBox(4, btn, lbl);
+        lbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #4b5563; -fx-text-alignment: center; -fx-font-weight: 500;");
+        VBox box = new VBox(6, btn, lbl);
         box.setAlignment(Pos.CENTER);
         return box;
     }
@@ -603,11 +608,17 @@ public final class StudyroomApp extends Application {
     }
 
     private Button createSectionButton(String icon, String text, javafx.event.EventHandler<javafx.event.ActionEvent> handler) {
+        boolean isDanger = "🚪".equals(icon) || text.contains("Rời");
         Label iconNode = new Label(icon);
-        iconNode.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-font-size: 15px; -fx-min-width: 22px;");
+        iconNode.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-font-size: 14px; -fx-text-fill: " + (isDanger ? "#dc2626;" : "#4f46e5;"));
+        StackPane iconBadge = new StackPane(iconNode);
+        iconBadge.setMinSize(28, 28);
+        iconBadge.setMaxSize(28, 28);
+        iconBadge.setStyle("-fx-background-color: " + (isDanger ? "#fee2e2;" : "#eeeffe;") + " -fx-background-radius: 7; -fx-alignment: center;");
+
         Label textNode = new Label(text);
-        textNode.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: #1f2937;");
-        HBox row = new HBox(8, iconNode, textNode);
+        textNode.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: " + (isDanger ? "#dc2626;" : "#1f2937;"));
+        HBox row = new HBox(10, iconBadge, textNode);
         row.setAlignment(Pos.CENTER_LEFT);
         Button btn = new Button();
         btn.setGraphic(row);
