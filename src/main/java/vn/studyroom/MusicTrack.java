@@ -107,6 +107,12 @@ public record MusicTrack(
         );
     }
 
+    public boolean isYoutube() {
+        return (id != null && id.startsWith("yt-"))
+            || "YouTube Audio".equalsIgnoreCase(genre)
+            || (widgetSrc != null && (widgetSrc.contains("youtube.com") || widgetSrc.contains("youtu.be")));
+    }
+
     public boolean isSoundCloud() {
         return soundcloudUrl != null && !soundcloudUrl.isBlank();
     }

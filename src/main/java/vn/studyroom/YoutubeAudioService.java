@@ -4,6 +4,8 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -22,6 +24,39 @@ public class YoutubeAudioService {
         System.getProperty("user.dir"), ".tools/yt-dlp.exe"
     );
 
+    private static final Set<String> ACTIVE_DOWNLOADS = ConcurrentHashMap.newKeySet();
+
+    public static synchronized boolean ensureYtDlpBinary() {
+        if (YTDLP_FILE.exists() && YTDLP_FILE.length() > 100_000) {
+            return true;
+        }
+        File toolsDir = YTDLP_FILE.getParentFile();
+        if (toolsDir != null && !toolsDir.exists()) {
+            toolsDir.mkdirs();
+        }
+        System.out.println("[YTAudio] yt-dlp.exe missing. Auto-downloading standalone binary from GitHub releases...");
+        try {
+            java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
+                .followRedirects(java.net.http.HttpClient.Redirect.ALWAYS)
+                .build();
+            java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
+                .uri(java.net.URI.create("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"))
+                .header("User-Agent", "StudyRoom/1.0")
+                .build();
+            java.net.http.HttpResponse<java.nio.file.Path> resp = client.send(
+                req,
+                java.net.http.HttpResponse.BodyHandlers.ofFile(YTDLP_FILE.toPath())
+            );
+            if (resp.statusCode() == 200 && YTDLP_FILE.exists() && YTDLP_FILE.length() > 100_000) {
+                System.out.println("[YTAudio] ✓ yt-dlp.exe auto-downloaded successfully (" + YTDLP_FILE.length() + " bytes)");
+                return true;
+            }
+        } catch (Exception ex) {
+            System.err.println("[YTAudio] Failed to auto-download yt-dlp.exe: " + ex.getMessage());
+        }
+        return YTDLP_FILE.exists() && YTDLP_FILE.length() > 100_000;
+    }
+
     public record DownloadedTrack(
         String videoId,
         String title,
@@ -36,10 +71,34 @@ public class YoutubeAudioService {
         String trimmed = input.trim();
 
         CACHE_DIR.mkdirs();
+        ensureYtDlpBinary();
 
         String bin = YTDLP_FILE.exists() ? YTDLP_FILE.getAbsolutePath() : "yt-dlp";
         System.out.println("[YTAudio] Using yt-dlp: " + bin);
         System.out.println("[YTAudio] Cache dir: " + CACHE_DIR.getAbsolutePath());
+
+        // Fast path: if input is a videoId or full YouTube URL, check cache immediately!
+        String fastId = YoutubePlayerBridge.extractVideoId(trimmed);
+        if (fastId != null && !fastId.isBlank()) {
+            File[] existing = CACHE_DIR.listFiles((dir, name) -> name.startsWith(fastId + ".") && name.length() > 1024);
+            if (existing != null && existing.length > 0) {
+                System.out.println("[YTAudio] Instant cache hit for " + fastId + ": " + existing[0].getAbsolutePath());
+                String thumb = "https://img.youtube.com/vi/" + fastId + "/maxresdefault.jpg";
+                return new DownloadedTrack(fastId, "YouTube Audio", "YouTube", 210, existing[0], thumb);
+            }
+            if (!ACTIVE_DOWNLOADS.add(fastId)) {
+                System.out.println("[YTAudio] Already downloading " + fastId + " in parallel thread, waiting...");
+                for (int i = 0; i < 60; i++) {
+                    try { Thread.sleep(500); } catch (InterruptedException ignored) {}
+                    File[] cached = CACHE_DIR.listFiles((dir, name) -> name.startsWith(fastId + ".") && name.length() > 1024);
+                    if (cached != null && cached.length > 0) {
+                        String thumb = "https://img.youtube.com/vi/" + fastId + "/maxresdefault.jpg";
+                        return new DownloadedTrack(fastId, "YouTube Audio", "YouTube", 210, cached[0], thumb);
+                    }
+                    if (!ACTIVE_DOWNLOADS.contains(fastId)) break;
+                }
+            }
+        }
 
         // If user provided a direct video ID or YouTube URL, pass directly; else search
         String target = trimmed;
@@ -49,6 +108,7 @@ public class YoutubeAudioService {
 
         // Output template using absolute cache path
         String outputTemplate = CACHE_DIR.getAbsolutePath() + File.separator + "%(id)s.%(ext)s";
+        String videoId = null;
 
         try {
             // Step 1: Get video metadata with --print (no download yet)
@@ -64,7 +124,6 @@ public class YoutubeAudioService {
             pbInfo.environment().put("LANG", "en_US.UTF-8");
             pbInfo.redirectErrorStream(true);
 
-            String videoId = null;
             String title = null;
             String uploader = null;
             int duration = 210;
@@ -186,6 +245,9 @@ public class YoutubeAudioService {
         } catch (Exception e) {
             System.err.println("[YTAudio] Failed: " + e.getMessage());
             e.printStackTrace();
+        } finally {
+            if (fastId != null) ACTIVE_DOWNLOADS.remove(fastId);
+            if (videoId != null) ACTIVE_DOWNLOADS.remove(videoId);
         }
         return null;
     }

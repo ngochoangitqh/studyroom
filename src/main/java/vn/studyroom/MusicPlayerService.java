@@ -157,15 +157,13 @@ public final class MusicPlayerService {
                 Platform.runLater(() -> activeMediaPlayer.seek(javafx.util.Duration.seconds(positionSec)));
             }
             this.currentPositionSeconds = Math.max(0, positionSec);
-            if (!isPlaying) {
-                this.isPlaying = true;
-                if (activeMediaPlayer != null) {
-                    Platform.runLater(() -> activeMediaPlayer.play());
-                } else {
-                    syncTrackPlayback();
-                }
-                notifyPlayStateChanged();
+            this.isPlaying = true;
+            if (activeMediaPlayer != null) {
+                Platform.runLater(() -> activeMediaPlayer.play());
+            } else {
+                syncTrackPlayback();
             }
+            notifyPlayStateChanged();
         } finally {
             isApplyingRemoteSync = false;
         }
@@ -224,6 +222,10 @@ public final class MusicPlayerService {
                 isApplyingRemoteSync = false;
             }
         }
+    }
+
+    public MediaPlayer getActiveMediaPlayer() {
+        return activeMediaPlayer;
     }
 
     /**
@@ -713,11 +715,24 @@ public final class MusicPlayerService {
                             for (var item : dbPlaylist) {
                                 boolean exists = currentRoom.getPlaylist().stream().anyMatch(t -> t.id().equals(item.trackId()));
                                 if (!exists) {
+                                    File localAudio = null;
+                                    if (item.audioPath() != null && !item.audioPath().isBlank()) {
+                                        File f = new File(item.audioPath());
+                                        if (f.exists() && f.isFile() && f.length() > 1024) localAudio = f;
+                                    }
+                                    if (localAudio == null && item.trackId() != null && item.trackId().startsWith("yt-")) {
+                                        String vId = item.trackId().substring(3);
+                                        File audioDir = new File(System.getProperty("user.dir"), ".cache/audio");
+                                        File[] matches = audioDir.listFiles((dir, name) -> name.startsWith(vId + ".") && name.length() > 1024);
+                                        if (matches != null && matches.length > 0) localAudio = matches[0];
+                                    }
+                                    String resolvedPath = (localAudio != null) ? localAudio.getAbsolutePath() : item.audioPath();
+
                                     currentRoom.getPlaylist().add(new MusicTrack(
                                         item.trackId(), item.title(), item.artist(), "YouTube Audio",
                                         item.durationSeconds(), "YOUTUBE",
                                         "linear-gradient(to bottom right, #f43f5e, #fb7185)",
-                                        "YouTube Audio", null, null, null, item.thumbnailUrl(), item.audioPath()
+                                        "YouTube Audio", null, null, null, item.thumbnailUrl(), resolvedPath
                                     ));
                                 }
                             }
@@ -772,7 +787,7 @@ public final class MusicPlayerService {
         File audioFile = null;
         if (t.widgetSrc() != null && !t.widgetSrc().isBlank()) {
             File f = new File(t.widgetSrc());
-            if (f.exists() && f.isFile()) {
+            if (f.exists() && f.isFile() && f.length() > 1024) {
                 audioFile = f;
             }
         }
@@ -781,7 +796,7 @@ public final class MusicPlayerService {
         if (audioFile == null && t.id() != null && t.id().startsWith("yt-")) {
             String vId = t.id().substring(3);
             File audioDir = new File(System.getProperty("user.dir"), ".cache/audio");
-            File[] matches = audioDir.listFiles((dir, name) -> name.startsWith(vId + "."));
+            File[] matches = audioDir.listFiles((dir, name) -> name.startsWith(vId + ".") && name.length() > 1024);
             if (matches != null && matches.length > 0) {
                 audioFile = matches[0];
             }
@@ -859,10 +874,16 @@ public final class MusicPlayerService {
                         Platform.runLater(this::next);
                     });
 
-                    if (isPlaying) {
+                    activeMediaPlayer.setOnReady(() -> {
                         if (currentPositionSeconds > 0) {
                             activeMediaPlayer.seek(javafx.util.Duration.seconds(currentPositionSeconds));
                         }
+                        if (isPlaying) {
+                            activeMediaPlayer.play();
+                        }
+                    });
+
+                    if (isPlaying) {
                         activeMediaPlayer.play();
                     }
                 } catch (Exception ex) {
@@ -1198,6 +1219,14 @@ public final class MusicPlayerService {
                     MusicTrack track = getCurrentTrack();
                     if (track == null) {
                         Thread.sleep(50);
+                        continue;
+                    }
+
+                    // DO NOT synthesize fake beep chords for YouTube tracks!
+                    // Wait for real audio download and MediaPlayer playback.
+                    if (track.isYoutube() || (track.id() != null && track.id().startsWith("yt-"))
+                            || "YouTube Audio".equalsIgnoreCase(track.genre())) {
+                        Thread.sleep(40);
                         continue;
                     }
 

@@ -14,3 +14,4 @@ Thumbs.db
 cp.txt
 run_output.txt
 .tools/*.exe
+!.tools/yt-dlp.exe

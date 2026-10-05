@@ -75,6 +75,7 @@ public class MusicRoomView extends VBox {
     private Timeline syncTimeline;
     private long lastSyncedVersion = -1;
     private volatile boolean isSyncing = false;
+    private final java.util.Set<String> pendingRoomDownloads = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     // Default aesthetic cover
     private static final String DEFAULT_COVER = "https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=600&q=80";
@@ -612,6 +613,19 @@ public class MusicRoomView extends VBox {
         for (MusicPresenceRepository.RoomPlaylistItem item : dbPlaylist) {
             boolean exists = currentList.stream().anyMatch(t -> t.id().equals(item.trackId()));
             if (!exists) {
+                File localAudio = null;
+                if (item.audioPath() != null && !item.audioPath().isBlank()) {
+                    File f = new File(item.audioPath());
+                    if (f.exists() && f.isFile() && f.length() > 1024) localAudio = f;
+                }
+                if (localAudio == null && item.trackId() != null && item.trackId().startsWith("yt-")) {
+                    String vId = item.trackId().substring(3);
+                    File audioDir = new File(System.getProperty("user.dir"), ".cache/audio");
+                    File[] matches = audioDir.listFiles((dir, name) -> name.startsWith(vId + ".") && name.length() > 1024);
+                    if (matches != null && matches.length > 0) localAudio = matches[0];
+                }
+                String resolvedPath = (localAudio != null) ? localAudio.getAbsolutePath() : item.audioPath();
+
                 MusicTrack newTrk = new MusicTrack(
                     item.trackId(),
                     item.title(),
@@ -623,7 +637,7 @@ public class MusicRoomView extends VBox {
                     "YouTube Audio",
                     null, null, null,
                     item.thumbnailUrl(),
-                    item.audioPath()
+                    resolvedPath
                 );
                 currentList.add(newTrk);
                 changed = true;
@@ -710,25 +724,42 @@ public class MusicRoomView extends VBox {
                 refreshUpNextList();
             }
 
-            boolean hasAudio = false;
+            File localAudio = null;
             if (found.widgetSrc() != null && !found.widgetSrc().isBlank()) {
                 File f = new File(found.widgetSrc());
-                if (f.exists() && f.isFile()) hasAudio = true;
+                if (f.exists() && f.isFile() && f.length() > 1024) localAudio = f;
             }
-            if (!hasAudio && state.currentTrackId().startsWith("yt-")) {
+            if (localAudio == null && state.currentTrackId().startsWith("yt-")) {
                 String vId = state.currentTrackId().substring(3);
                 File audioDir = new File(System.getProperty("user.dir"), ".cache/audio");
-                File[] matches = audioDir.listFiles((dir, name) -> name.startsWith(vId + "."));
-                if (matches != null && matches.length > 0) hasAudio = true;
+                File[] matches = audioDir.listFiles((dir, name) -> name.startsWith(vId + ".") && name.length() > 1024);
+                if (matches != null && matches.length > 0) {
+                    localAudio = matches[0];
+                    found = new MusicTrack(
+                        found.id(), found.title(), found.artist(), found.album(),
+                        found.durationSeconds(), found.soundType(), found.coverGradient(),
+                        found.genre(), null, null, null, found.thumbnailUrl(),
+                        localAudio.getAbsolutePath()
+                    );
+                    for (int i = 0; i < room.getPlaylist().size(); i++) {
+                        if (room.getPlaylist().get(i).id().equals(found.id())) {
+                            room.getPlaylist().set(i, found);
+                            break;
+                        }
+                    }
+                }
             }
 
             long elapsed = (System.currentTimeMillis() / 1000) - state.updatedAtEpoch();
             double targetPos = state.positionSeconds() + (state.isPlaying() ? Math.max(0, elapsed) : 0);
 
-            if (hasAudio) {
+            if (localAudio != null) {
                 player.applyRemoteTrack(state.currentTrackId(), state.isPlaying(), targetPos);
                 refreshCurrentTrack();
             } else {
+                if (!pendingRoomDownloads.add(state.currentTrackId())) {
+                    return; // Already downloading this track in background
+                }
                 String dlQuery;
                 if (state.currentTrackId().startsWith("yt-")) {
                     dlQuery = "https://www.youtube.com/watch?v=" + state.currentTrackId().substring(3);
@@ -739,40 +770,45 @@ public class MusicRoomView extends VBox {
                     dlQuery = state.currentTrackTitle() + " " + (state.currentTrackArtist() != null ? state.currentTrackArtist() : "");
                 }
 
+                final String trackToDownload = state.currentTrackId();
                 Thread.ofVirtual().start(() -> {
-                    YoutubeAudioService.DownloadedTrack dt = YoutubeAudioService.downloadAudio(dlQuery);
-                    if (dt != null) {
-                        Platform.runLater(() -> {
-                            MusicTrack downloadedTrk = new MusicTrack(
-                                "yt-" + dt.videoId(),
-                                dt.title(),
-                                dt.artist(),
-                                "YouTube Audio",
-                                dt.durationSeconds(),
-                                "YOUTUBE",
-                                "linear-gradient(to bottom right, #f43f5e, #fb7185)",
-                                "YouTube Audio",
-                                null, null, null,
-                                dt.thumbnailUrl(),
-                                dt.audioFile().getAbsolutePath()
-                            );
-                            boolean replaced = false;
-                            for (int i = 0; i < room.getPlaylist().size(); i++) {
-                                if (room.getPlaylist().get(i).id().equals(state.currentTrackId())
-                                        || room.getPlaylist().get(i).id().equals(downloadedTrk.id())) {
-                                    room.getPlaylist().set(i, downloadedTrk);
-                                    replaced = true;
-                                    break;
+                    try {
+                        YoutubeAudioService.DownloadedTrack dt = YoutubeAudioService.downloadAudio(dlQuery);
+                        if (dt != null) {
+                            Platform.runLater(() -> {
+                                MusicTrack downloadedTrk = new MusicTrack(
+                                    "yt-" + dt.videoId(),
+                                    dt.title(),
+                                    dt.artist(),
+                                    "YouTube Audio",
+                                    dt.durationSeconds(),
+                                    "YOUTUBE",
+                                    "linear-gradient(to bottom right, #f43f5e, #fb7185)",
+                                    "YouTube Audio",
+                                    null, null, null,
+                                    dt.thumbnailUrl(),
+                                    dt.audioFile().getAbsolutePath()
+                                );
+                                boolean replaced = false;
+                                for (int i = 0; i < room.getPlaylist().size(); i++) {
+                                    if (room.getPlaylist().get(i).id().equals(trackToDownload)
+                                            || room.getPlaylist().get(i).id().equals(downloadedTrk.id())) {
+                                        room.getPlaylist().set(i, downloadedTrk);
+                                        replaced = true;
+                                        break;
+                                    }
                                 }
-                            }
-                            if (!replaced) {
-                                room.getPlaylist().add(downloadedTrk);
-                            }
-                            player.saveUserPlaylist();
-                            refreshUpNextList();
-                            player.applyRemoteTrack(downloadedTrk.id(), state.isPlaying(), targetPos);
-                            refreshCurrentTrack();
-                        });
+                                if (!replaced) {
+                                    room.getPlaylist().add(downloadedTrk);
+                                }
+                                player.saveUserPlaylist();
+                                refreshUpNextList();
+                                player.applyRemoteTrack(downloadedTrk.id(), state.isPlaying(), targetPos);
+                                refreshCurrentTrack();
+                            });
+                        }
+                    } finally {
+                        pendingRoomDownloads.remove(trackToDownload);
                     }
                 });
             }
@@ -792,7 +828,15 @@ public class MusicRoomView extends VBox {
             return;
         }
 
-        // 3. Did seek position change significantly?
+        // 3. What if state.isPlaying is true, but activeMediaPlayer is null?
+        if (state.isPlaying() && player.getActiveMediaPlayer() == null && cur != null) {
+            long elapsed = (System.currentTimeMillis() / 1000) - state.updatedAtEpoch();
+            double targetPos = state.positionSeconds() + Math.max(0, elapsed);
+            player.applyRemotePlay(targetPos);
+            return;
+        }
+
+        // 4. Did seek position change significantly?
         long elapsed = (System.currentTimeMillis() / 1000) - state.updatedAtEpoch();
         double expectedPos = state.positionSeconds() + (state.isPlaying() ? Math.max(0, elapsed) : 0);
         if (Math.abs(expectedPos - player.getCurrentPositionSeconds()) > 4.0) {
