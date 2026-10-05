@@ -53,7 +53,9 @@ public final class MusicPresenceRepository {
         String sql = """
             SELECT room_id, room_name, current_track_id, current_track_title, current_track_artist,
                    current_track_duration, current_track_thumb, current_track_audio, current_track_query,
-                   is_playing, position_seconds, last_updated_by, version,
+                   is_playing,
+                   (position_seconds + (CASE WHEN is_playing THEN GREATEST(0.0, EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - updated_at))) ELSE 0.0 END))::DOUBLE PRECISION,
+                   last_updated_by, version,
                    EXTRACT(EPOCH FROM updated_at)::BIGINT
             FROM music_room_state
             WHERE room_id = ?

@@ -739,9 +739,7 @@ public final class MusicPlayerService {
                             notifyRoomUpdated();
                         }
                         if (state != null && state.currentTrackId() != null && !state.currentTrackId().isBlank()) {
-                            long elapsed = (System.currentTimeMillis() / 1000) - state.updatedAtEpoch();
-                            double targetPos = state.positionSeconds() + (state.isPlaying() ? Math.max(0, elapsed) : 0);
-                            applyRemoteTrack(state.currentTrackId(), state.isPlaying(), targetPos);
+                            applyRemoteTrack(state.currentTrackId(), state.isPlaying(), state.positionSeconds());
                         }
                     }
                 });

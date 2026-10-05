@@ -679,14 +679,6 @@ public class MusicRoomView extends VBox {
         }
 
         if (state.version() <= lastSyncedVersion) {
-            // Check for position drift during playback
-            if (state.isPlaying() && player.isPlaying()) {
-                long elapsed = (System.currentTimeMillis() / 1000) - state.updatedAtEpoch();
-                double expectedPos = state.positionSeconds() + Math.max(0, elapsed);
-                if (Math.abs(expectedPos - player.getCurrentPositionSeconds()) > 4.0) {
-                    player.applyRemoteSeek(expectedPos);
-                }
-            }
             return;
         }
 
@@ -750,8 +742,7 @@ public class MusicRoomView extends VBox {
                 }
             }
 
-            long elapsed = (System.currentTimeMillis() / 1000) - state.updatedAtEpoch();
-            double targetPos = state.positionSeconds() + (state.isPlaying() ? Math.max(0, elapsed) : 0);
+            double targetPos = state.positionSeconds();
 
             if (localAudio != null) {
                 player.applyRemoteTrack(state.currentTrackId(), state.isPlaying(), targetPos);
@@ -818,9 +809,7 @@ public class MusicRoomView extends VBox {
         // 2. Did Play / Pause state change?
         if (state.isPlaying() != player.isPlaying()) {
             if (state.isPlaying()) {
-                long elapsed = (System.currentTimeMillis() / 1000) - state.updatedAtEpoch();
-                double targetPos = state.positionSeconds() + Math.max(0, elapsed);
-                player.applyRemotePlay(targetPos);
+                player.applyRemotePlay(state.positionSeconds());
             } else {
                 player.applyRemotePause();
             }
@@ -830,17 +819,13 @@ public class MusicRoomView extends VBox {
 
         // 3. What if state.isPlaying is true, but activeMediaPlayer is null?
         if (state.isPlaying() && player.getActiveMediaPlayer() == null && cur != null) {
-            long elapsed = (System.currentTimeMillis() / 1000) - state.updatedAtEpoch();
-            double targetPos = state.positionSeconds() + Math.max(0, elapsed);
-            player.applyRemotePlay(targetPos);
+            player.applyRemotePlay(state.positionSeconds());
             return;
         }
 
         // 4. Did seek position change significantly?
-        long elapsed = (System.currentTimeMillis() / 1000) - state.updatedAtEpoch();
-        double expectedPos = state.positionSeconds() + (state.isPlaying() ? Math.max(0, elapsed) : 0);
-        if (Math.abs(expectedPos - player.getCurrentPositionSeconds()) > 4.0) {
-            player.applyRemoteSeek(expectedPos);
+        if (Math.abs(state.positionSeconds() - player.getCurrentPositionSeconds()) > 4.0) {
+            player.applyRemoteSeek(state.positionSeconds());
         }
     }
 
