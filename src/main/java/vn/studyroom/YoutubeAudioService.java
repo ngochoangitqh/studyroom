@@ -54,11 +54,14 @@ public class YoutubeAudioService {
             // Step 1: Get video metadata with --print (no download yet)
             ProcessBuilder pbInfo = new ProcessBuilder(
                 bin,
+                "--encoding", "utf-8",
                 "--no-playlist",
                 "--print", "%(id)s|||%(title)s|||%(uploader)s|||%(duration)s",
                 "--no-download",
                 target
             );
+            pbInfo.environment().put("PYTHONIOENCODING", "utf-8");
+            pbInfo.environment().put("LANG", "en_US.UTF-8");
             pbInfo.redirectErrorStream(true);
 
             String videoId = null;
@@ -118,12 +121,15 @@ public class YoutubeAudioService {
             System.out.println("[YTAudio] Downloading audio for: " + videoId);
             ProcessBuilder pbDown = new ProcessBuilder(
                 bin,
+                "--encoding", "utf-8",
                 "--no-playlist",
                 "-f", "140/ba[ext=m4a]/ba[ext=webm]/ba[ext=opus]/ba/bestaudio/best",
                 "--no-part",
                 "-o", outputTemplate,
                 target
             );
+            pbDown.environment().put("PYTHONIOENCODING", "utf-8");
+            pbDown.environment().put("LANG", "en_US.UTF-8");
             pbDown.redirectErrorStream(true);
             pbDown.directory(CACHE_DIR.getParentFile().getParentFile()); // set working dir to project root
 

@@ -127,25 +127,27 @@ public class MusicRoomView extends VBox {
         badgePill.setStyle("-fx-background-color: #fff1f2; -fx-border-color: #ffe4e6; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14;");
 
         Label waveIcon = new Label("📶");
-        waveIcon.setStyle("-fx-font-size: 11px; -fx-text-fill: #f43f5e;");
+        waveIcon.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-font-size: 11px; -fx-text-fill: #f43f5e;");
         listenerBadgeLbl = new Label("5 người đang nghe");
         listenerBadgeLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: 700; -fx-text-fill: #f43f5e;");
         badgePill.getChildren().addAll(waveIcon, listenerBadgeLbl);
 
         // Invite friends button
         Button inviteBtn = new Button("➕ Mời bạn");
-        inviteBtn.setStyle("-fx-background-color: #f1f5f9; -fx-border-color: #cbd5e1; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #1e293b; -fx-font-weight: 700; -fx-font-size: 12px; -fx-cursor: hand;");
-        inviteBtn.setOnMouseEntered(e -> inviteBtn.setStyle("-fx-background-color: #e2e8f0; -fx-border-color: #94a3b8; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #0f172a; -fx-font-weight: 700; -fx-font-size: 12px; -fx-cursor: hand;"));
-        inviteBtn.setOnMouseExited(e -> inviteBtn.setStyle("-fx-background-color: #f1f5f9; -fx-border-color: #cbd5e1; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #1e293b; -fx-font-weight: 700; -fx-font-size: 12px; -fx-cursor: hand;"));
+        inviteBtn.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif; -fx-background-color: #f1f5f9; -fx-border-color: #cbd5e1; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #1e293b; -fx-font-weight: 700; -fx-font-size: 12px; -fx-cursor: hand;");
+        inviteBtn.setOnMouseEntered(e -> inviteBtn.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif; -fx-background-color: #e2e8f0; -fx-border-color: #94a3b8; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #0f172a; -fx-font-weight: 700; -fx-font-size: 12px; -fx-cursor: hand;"));
+        inviteBtn.setOnMouseExited(e -> inviteBtn.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif; -fx-background-color: #f1f5f9; -fx-border-color: #cbd5e1; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #1e293b; -fx-font-weight: 700; -fx-font-size: 12px; -fx-cursor: hand;"));
         inviteBtn.setOnAction(e -> {
             if (onInviteFriends != null) onInviteFriends.run();
         });
 
         // Leave / Switch Room button
-        Button leaveBtn = new Button("🚪 Rời phòng");
-        leaveBtn.setStyle("-fx-background-color: #ffffff; -fx-border-color: #e2e8f0; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #334155; -fx-font-weight: 600; -fx-font-size: 12px; -fx-cursor: hand;");
-        leaveBtn.setOnMouseEntered(e -> leaveBtn.setStyle("-fx-background-color: #fee2e2; -fx-border-color: #fca5a5; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #dc2626; -fx-font-weight: 600; -fx-font-size: 12px; -fx-cursor: hand;"));
-        leaveBtn.setOnMouseExited(e -> leaveBtn.setStyle("-fx-background-color: #ffffff; -fx-border-color: #e2e8f0; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #334155; -fx-font-weight: 600; -fx-font-size: 12px; -fx-cursor: hand;"));
+        Label leaveIcon = new Label("🚪");
+        leaveIcon.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-font-size: 13px;");
+        Button leaveBtn = new Button(" Rời phòng", leaveIcon);
+        leaveBtn.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif; -fx-background-color: #ffffff; -fx-border-color: #e2e8f0; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #334155; -fx-font-weight: 600; -fx-font-size: 12px; -fx-cursor: hand;");
+        leaveBtn.setOnMouseEntered(e -> leaveBtn.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif; -fx-background-color: #fee2e2; -fx-border-color: #fca5a5; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #dc2626; -fx-font-weight: 600; -fx-font-size: 12px; -fx-cursor: hand;"));
+        leaveBtn.setOnMouseExited(e -> leaveBtn.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif; -fx-background-color: #ffffff; -fx-border-color: #e2e8f0; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #334155; -fx-font-weight: 600; -fx-font-size: 12px; -fx-cursor: hand;"));
         leaveBtn.setOnAction(e -> {
             if (onLeaveRoom != null) {
                 onLeaveRoom.run();
@@ -224,10 +226,12 @@ public class MusicRoomView extends VBox {
         songMeta.setAlignment(Pos.CENTER);
 
         songTitleLbl = new Label("Lofi Study Beats");
-        songTitleLbl.setStyle("-fx-font-size: 22px; -fx-font-weight: 800; -fx-text-fill: #0f172a; -fx-alignment: center;");
+        songTitleLbl.setStyle("-fx-font-family: 'Segoe UI', Arial, sans-serif; -fx-font-size: 20px; -fx-font-weight: 800; -fx-text-fill: #0f172a; -fx-alignment: center; -fx-text-alignment: center;");
+        songTitleLbl.setWrapText(true);
+        songTitleLbl.setMaxWidth(560);
 
         songArtistLbl = new Label("Chill Collective");
-        songArtistLbl.setStyle("-fx-font-size: 14px; -fx-font-weight: 500; -fx-text-fill: #64748b; -fx-alignment: center;");
+        songArtistLbl.setStyle("-fx-font-family: 'Segoe UI', Arial, sans-serif; -fx-font-size: 14px; -fx-font-weight: 500; -fx-text-fill: #64748b; -fx-alignment: center;");
 
         songMeta.getChildren().addAll(songTitleLbl, songArtistLbl);
 
@@ -612,10 +616,10 @@ public class MusicRoomView extends VBox {
             // Title & Artist
             VBox meta = new VBox(2);
             Label tLbl = new Label(trk.title());
-            tLbl.setStyle("-fx-font-size: 13px; -fx-font-weight: 700; -fx-text-fill: " + (isActive ? "#4f46e5;" : "#0f172a;"));
+            tLbl.setStyle("-fx-font-family: 'Segoe UI', Arial, sans-serif; -fx-font-size: 13px; -fx-font-weight: 700; -fx-text-fill: " + (isActive ? "#4f46e5;" : "#0f172a;"));
             tLbl.setMaxWidth(160);
             Label aLbl = new Label(trk.artist());
-            aLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #64748b;");
+            aLbl.setStyle("-fx-font-family: 'Segoe UI', Arial, sans-serif; -fx-font-size: 11px; -fx-text-fill: #64748b;");
             aLbl.setMaxWidth(160);
             meta.getChildren().addAll(tLbl, aLbl);
             HBox.setHgrow(meta, Priority.ALWAYS);
