@@ -14,7 +14,7 @@ public final class Database {
     public Database() {
         url = setting("STUDYROOM_DB_URL", "jdbc:postgresql://localhost:5432/studyroom");
         user = setting("STUDYROOM_DB_USER", "postgres");
-        password = setting("STUDYROOM_DB_PASSWORD", "");
+        password = setting("STUDYROOM_DB_PASSWORD", "ngochoang");
         initialize();
     }
 

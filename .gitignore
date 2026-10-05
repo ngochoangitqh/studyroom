@@ -10,3 +10,7 @@ target/
 *.iml
 .DS_Store
 Thumbs.db
+.cache/
+cp.txt
+run_output.txt
+.tools/*.exe

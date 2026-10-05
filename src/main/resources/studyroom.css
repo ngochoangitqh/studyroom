@@ -107,3 +107,8 @@
 .tab-pill-active { -fx-background-color: -violet; -fx-text-fill: white; -fx-font-weight: 800; -fx-font-size: 13px; -fx-background-radius: 20; -fx-padding: 8 16; }
 .tab-pill-active:hover { -fx-background-color: -violet; -fx-text-fill: white; }
 
+/* Spotify & SoundCloud Music Room Theme */
+.music-room-chip { -fx-cursor: hand; }
+.music-slider .track { -fx-background-color: #3f3f46; -fx-background-radius: 4; -fx-pref-height: 4; }
+.music-slider .thumb { -fx-background-color: white; -fx-background-radius: 999; -fx-pref-width: 12; -fx-pref-height: 12; }
+.music-slider:hover .thumb { -fx-background-color: #1db954; -fx-effect: dropshadow(gaussian, rgba(29,185,84,0.5), 6, 0, 0, 1); }

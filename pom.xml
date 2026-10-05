@@ -18,6 +18,12 @@
       <groupId>org.openjfx</groupId><artifactId>javafx-graphics</artifactId><version>${javafx.version}</version>
     </dependency>
     <dependency>
+      <groupId>org.openjfx</groupId><artifactId>javafx-web</artifactId><version>${javafx.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.openjfx</groupId><artifactId>javafx-media</artifactId><version>${javafx.version}</version>
+    </dependency>
+    <dependency>
       <groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><version>42.7.4</version>
     </dependency>
     <dependency>
