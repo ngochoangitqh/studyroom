@@ -88,7 +88,7 @@ public record MusicTrack(
         String gradient = "linear-gradient(to bottom right, #f43f5e, #fb7185)";
         String soundType = detectSoundType(title, artist, genre);
         String thumb = (videoId != null && !videoId.isBlank())
-            ? "https://img.youtube.com/vi/" + videoId + "/hqdefault.jpg"
+            ? "https://img.youtube.com/vi/" + videoId + "/maxresdefault.jpg"
             : null;
         return new MusicTrack(
             id,

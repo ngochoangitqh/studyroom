@@ -113,7 +113,7 @@ public class YoutubeAudioService {
                 System.out.println("[YTAudio] Cache hit: " + cached[0].getAbsolutePath());
                 String t = (title != null && !title.isBlank()) ? title : "YouTube · " + videoId;
                 String a = (uploader != null && !uploader.isBlank()) ? uploader : "YouTube";
-                String thumb = "https://img.youtube.com/vi/" + videoId + "/hqdefault.jpg";
+                String thumb = "https://img.youtube.com/vi/" + videoId + "/maxresdefault.jpg";
                 return new DownloadedTrack(videoId, t, a, duration, cached[0], thumb);
             }
 
@@ -179,7 +179,7 @@ public class YoutubeAudioService {
             if (title == null || title.isBlank()) title = "YouTube · " + videoId;
             if (uploader == null || uploader.isBlank()) uploader = "YouTube";
 
-            String thumbUrl = "https://img.youtube.com/vi/" + videoId + "/hqdefault.jpg";
+            String thumbUrl = "https://img.youtube.com/vi/" + videoId + "/maxresdefault.jpg";
             System.out.println("[YTAudio] ✓ Ready: " + title + " → " + audioFile.getAbsolutePath());
             return new DownloadedTrack(videoId, title, uploader, duration, audioFile, thumbUrl);
 

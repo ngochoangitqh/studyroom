@@ -2,14 +2,17 @@ package vn.studyroom;
 
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
+import javafx.animation.ScaleTransition;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Cursor;
 import javafx.scene.control.*;
 import javafx.scene.effect.BlurType;
 import javafx.scene.effect.DropShadow;
+import javafx.scene.effect.GaussianBlur;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
@@ -49,6 +52,7 @@ public class MusicRoomView extends VBox {
     private Label listenerBadgeLbl;
 
     // Center Stage controls
+    private ImageView ambientGlowView;
     private ImageView coverImageView;
     private Label songTitleLbl;
     private Label songArtistLbl;
@@ -225,10 +229,24 @@ public class MusicRoomView extends VBox {
         center.setAlignment(Pos.TOP_CENTER);
         center.setStyle("-fx-background-color: transparent;");
 
-        // 1. Large Rounded Album Cover with drop shadow
+        // 1. Large Rounded Album Cover with Ambient Glow & Glass Highlight
         StackPane coverContainer = new StackPane();
         coverContainer.setAlignment(Pos.CENTER);
-        coverContainer.setPadding(new Insets(4, 0, 8, 0));
+        coverContainer.setPadding(new Insets(6, 0, 12, 0));
+
+        // Background ambient glow radiating music colors
+        ambientGlowView = new ImageView();
+        ambientGlowView.setFitWidth(300);
+        ambientGlowView.setFitHeight(300);
+        ambientGlowView.setPreserveRatio(false);
+        ambientGlowView.setSmooth(true);
+        ambientGlowView.setEffect(new GaussianBlur(36));
+        ambientGlowView.setOpacity(0.55);
+
+        // Foreground Artwork Card with subtle depth & glass border
+        StackPane artCard = new StackPane();
+        artCard.setMaxSize(310, 310);
+        artCard.setPrefSize(310, 310);
 
         coverImageView = new ImageView();
         coverImageView.setFitWidth(310);
@@ -237,13 +255,35 @@ public class MusicRoomView extends VBox {
         coverImageView.setSmooth(true);
 
         Rectangle clip = new Rectangle(310, 310);
-        clip.setArcWidth(26);
-        clip.setArcHeight(26);
+        clip.setArcWidth(28);
+        clip.setArcHeight(28);
         coverImageView.setClip(clip);
 
-        DropShadow shadow = new DropShadow(BlurType.GAUSSIAN, Color.rgb(0, 0, 0, 0.16), 24, 0.08, 0, 10);
-        coverContainer.setEffect(shadow);
-        coverContainer.getChildren().add(coverImageView);
+        Rectangle glassBorder = new Rectangle(310, 310);
+        glassBorder.setArcWidth(28);
+        glassBorder.setArcHeight(28);
+        glassBorder.setFill(Color.TRANSPARENT);
+        glassBorder.setStroke(Color.rgb(255, 255, 255, 0.40));
+        glassBorder.setStrokeWidth(1.5);
+        glassBorder.setMouseTransparent(true);
+
+        artCard.getChildren().addAll(coverImageView, glassBorder);
+        artCard.setEffect(new DropShadow(BlurType.GAUSSIAN, Color.rgb(15, 23, 42, 0.18), 26, 0.10, 0, 10));
+
+        artCard.setOnMouseEntered(e -> {
+            ScaleTransition st = new ScaleTransition(Duration.millis(180), artCard);
+            st.setToX(1.02);
+            st.setToY(1.02);
+            st.play();
+        });
+        artCard.setOnMouseExited(e -> {
+            ScaleTransition st = new ScaleTransition(Duration.millis(180), artCard);
+            st.setToX(1.0);
+            st.setToY(1.0);
+            st.play();
+        });
+
+        coverContainer.getChildren().addAll(ambientGlowView, artCard);
 
         // 2. Song Title & Artist
         VBox songMeta = new VBox(4);
@@ -777,30 +817,104 @@ public class MusicRoomView extends VBox {
             songArtistLbl.setText(t.artist() != null ? t.artist() : "YouTube Audio");
             totalTimeLbl.setText(t.formattedDuration());
 
-            // Cover Image resolution: YouTube thumbnail, track thumbnail, or default cover
             String coverUrl = t.thumbnailUrl();
             if (coverUrl == null || coverUrl.isBlank()) {
                 coverUrl = DEFAULT_COVER;
             }
-
-            try {
-                coverImageView.setImage(new Image(coverUrl, 310, 310, false, true, true));
-            } catch (Exception ex) {
-                try {
-                    coverImageView.setImage(new Image(DEFAULT_COVER, true));
-                } catch (Exception ignored) {}
-            }
+            setCrispCoverImage(coverUrl);
         } else {
             songTitleLbl.setText("Chưa có bài hát nào trong playlist");
             songArtistLbl.setText("Bấm \"＋ Thêm bài\" ở bên phải để thêm nhạc YouTube");
             curTimeLbl.setText("0:00");
             totalTimeLbl.setText("0:00");
             waveformBar.setProgress(0.0);
-            try {
-                coverImageView.setImage(new Image(DEFAULT_COVER, true));
-            } catch (Exception ignored) {}
+            setCrispCoverImage(DEFAULT_COVER);
         }
         refreshUpNextList();
+    }
+
+    private void setCrispCoverImage(String rawUrl) {
+        if (rawUrl == null || rawUrl.isBlank()) {
+            rawUrl = DEFAULT_COVER;
+        }
+
+        // Try maxresdefault.jpg first for YouTube URLs if they were pointing to hqdefault
+        String primaryUrl = rawUrl;
+        if (primaryUrl.contains("img.youtube.com/vi/") && primaryUrl.contains("/hqdefault.jpg")) {
+            primaryUrl = primaryUrl.replace("/hqdefault.jpg", "/maxresdefault.jpg");
+        }
+
+        loadAndApplyCoverImage(primaryUrl, rawUrl);
+    }
+
+    private void loadAndApplyCoverImage(String url, String fallbackUrl) {
+        try {
+            Image img = new Image(url, true);
+            img.errorProperty().addListener((obs, oldErr, isErr) -> {
+                if (Boolean.TRUE.equals(isErr)) {
+                    if (fallbackUrl != null && !fallbackUrl.equals(url)) {
+                        Platform.runLater(() -> loadAndApplyCoverImage(fallbackUrl, DEFAULT_COVER));
+                    } else if (!url.equals(DEFAULT_COVER)) {
+                        Platform.runLater(() -> loadAndApplyCoverImage(DEFAULT_COVER, null));
+                    }
+                }
+            });
+
+            Runnable updateView = () -> {
+                if (img.isError()) return;
+                applyCrispImage(coverImageView, img, url);
+                if (ambientGlowView != null) {
+                    applyCrispImage(ambientGlowView, img, url);
+                }
+            };
+
+            if (img.getProgress() >= 1.0 && img.getWidth() > 0) {
+                updateView.run();
+            } else {
+                img.progressProperty().addListener((obs, oldProg, newProg) -> {
+                    if (newProg.doubleValue() >= 1.0 && img.getWidth() > 0) {
+                        Platform.runLater(updateView);
+                    }
+                });
+            }
+
+            coverImageView.setImage(img);
+            if (ambientGlowView != null) {
+                ambientGlowView.setImage(img);
+            }
+        } catch (Exception ex) {
+            try {
+                Image defImg = new Image(DEFAULT_COVER, true);
+                coverImageView.setImage(defImg);
+                if (ambientGlowView != null) ambientGlowView.setImage(defImg);
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private void applyCrispImage(ImageView iv, Image img, String url) {
+        if (iv == null || img == null) return;
+        iv.setImage(img);
+
+        double w = img.getWidth();
+        double h = img.getHeight();
+        if (w <= 0 || h <= 0) return;
+
+        // Detect if this is a 4:3 YouTube thumbnail (hqdefault.jpg 480x360 has 45px black letterbox bars top & bottom)
+        boolean isLetterboxedHq = url.contains("/hqdefault.jpg") || (Math.abs(w / h - 4.0 / 3.0) < 0.05 && w <= 480);
+        if (isLetterboxedHq) {
+            // Actual 16:9 video content occupies the middle 75% height (e.g. 270px on 360px height)
+            double contentH = h * 0.75;
+            double contentY = (h - contentH) / 2.0;
+            double squareSize = Math.min(w, contentH);
+            double cropX = (w - squareSize) / 2.0;
+            iv.setViewport(new Rectangle2D(cropX, contentY, squareSize, squareSize));
+        } else {
+            // High-res 16:9 (like maxresdefault 1280x720) or standard aspect ratio: center square crop
+            double squareSize = Math.min(w, h);
+            double cropX = (w - squareSize) / 2.0;
+            double cropY = (h - squareSize) / 2.0;
+            iv.setViewport(new Rectangle2D(cropX, cropY, squareSize, squareSize));
+        }
     }
 
     private void refreshPlayState() {
@@ -882,14 +996,27 @@ public class MusicRoomView extends VBox {
             iv.setFitWidth(38);
             iv.setFitHeight(38);
             iv.setPreserveRatio(false);
-            String th = (trk.thumbnailUrl() != null && !trk.thumbnailUrl().isBlank()) ? trk.thumbnailUrl() : DEFAULT_COVER;
-            try {
-                iv.setImage(new Image(th, true));
-            } catch (Exception ignored) {}
+            iv.setSmooth(true);
             Rectangle clip = new Rectangle(38, 38);
             clip.setArcWidth(8);
             clip.setArcHeight(8);
             iv.setClip(clip);
+
+            String th = (trk.thumbnailUrl() != null && !trk.thumbnailUrl().isBlank()) ? trk.thumbnailUrl() : DEFAULT_COVER;
+            try {
+                Image img = new Image(th, true);
+                iv.setImage(img);
+                Runnable cropUpNext = () -> applyCrispImage(iv, img, th);
+                if (img.getProgress() >= 1.0 && img.getWidth() > 0) {
+                    cropUpNext.run();
+                } else {
+                    img.progressProperty().addListener((obs, oldP, newP) -> {
+                        if (newP.doubleValue() >= 1.0 && img.getWidth() > 0) {
+                            Platform.runLater(cropUpNext);
+                        }
+                    });
+                }
+            } catch (Exception ignored) {}
 
             // Title & Artist
             VBox meta = new VBox(2);
