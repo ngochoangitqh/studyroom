@@ -92,11 +92,13 @@ public final class Database {
                   room_id VARCHAR(64) NOT NULL,
                   room_name VARCHAR(100) NOT NULL,
                   host_username VARCHAR(64) NOT NULL REFERENCES app_user(username),
+                  receiver_username VARCHAR(64),
                   call_type VARCHAR(20) NOT NULL,
                   status VARCHAR(20) NOT NULL,
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
                 )
                 """);
+            statement.executeUpdate("ALTER TABLE call_session ADD COLUMN IF NOT EXISTS receiver_username VARCHAR(64)");
             statement.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS call_participant (
                   call_id VARCHAR(64) NOT NULL REFERENCES call_session(call_id),

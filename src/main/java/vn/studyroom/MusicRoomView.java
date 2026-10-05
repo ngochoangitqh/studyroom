@@ -35,6 +35,7 @@ public class MusicRoomView extends VBox {
     private final MusicPlayerService player;
     private final User currentUser;
     private final Runnable onInviteFriends;
+    private final Runnable onLeaveRoom;
     private final Consumer<String> toastCallback;
 
     // Header controls
@@ -65,9 +66,14 @@ public class MusicRoomView extends VBox {
     private static final String DEFAULT_COVER = "https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=600&q=80";
 
     public MusicRoomView(MusicPlayerService player, User currentUser, Runnable onInviteFriends, Consumer<String> toastCallback) {
+        this(player, currentUser, onInviteFriends, null, toastCallback);
+    }
+
+    public MusicRoomView(MusicPlayerService player, User currentUser, Runnable onInviteFriends, Runnable onLeaveRoom, Consumer<String> toastCallback) {
         this.player = player;
         this.currentUser = currentUser;
         this.onInviteFriends = onInviteFriends;
+        this.onLeaveRoom = onLeaveRoom;
         this.toastCallback = toastCallback;
 
         setStyle("-fx-background-color: #fafafa;");
@@ -126,12 +132,27 @@ public class MusicRoomView extends VBox {
         listenerBadgeLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: 700; -fx-text-fill: #f43f5e;");
         badgePill.getChildren().addAll(waveIcon, listenerBadgeLbl);
 
+        // Invite friends button
+        Button inviteBtn = new Button("➕ Mời bạn");
+        inviteBtn.setStyle("-fx-background-color: #f1f5f9; -fx-border-color: #cbd5e1; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #1e293b; -fx-font-weight: 700; -fx-font-size: 12px; -fx-cursor: hand;");
+        inviteBtn.setOnMouseEntered(e -> inviteBtn.setStyle("-fx-background-color: #e2e8f0; -fx-border-color: #94a3b8; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #0f172a; -fx-font-weight: 700; -fx-font-size: 12px; -fx-cursor: hand;"));
+        inviteBtn.setOnMouseExited(e -> inviteBtn.setStyle("-fx-background-color: #f1f5f9; -fx-border-color: #cbd5e1; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #1e293b; -fx-font-weight: 700; -fx-font-size: 12px; -fx-cursor: hand;"));
+        inviteBtn.setOnAction(e -> {
+            if (onInviteFriends != null) onInviteFriends.run();
+        });
+
         // Leave / Switch Room button
-        Button leaveBtn = new Button("👥 Rời phòng");
+        Button leaveBtn = new Button("🚪 Rời phòng");
         leaveBtn.setStyle("-fx-background-color: #ffffff; -fx-border-color: #e2e8f0; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #334155; -fx-font-weight: 600; -fx-font-size: 12px; -fx-cursor: hand;");
-        leaveBtn.setOnMouseEntered(e -> leaveBtn.setStyle("-fx-background-color: #f1f5f9; -fx-border-color: #cbd5e1; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #0f172a; -fx-font-weight: 600; -fx-font-size: 12px; -fx-cursor: hand;"));
+        leaveBtn.setOnMouseEntered(e -> leaveBtn.setStyle("-fx-background-color: #fee2e2; -fx-border-color: #fca5a5; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #dc2626; -fx-font-weight: 600; -fx-font-size: 12px; -fx-cursor: hand;"));
         leaveBtn.setOnMouseExited(e -> leaveBtn.setStyle("-fx-background-color: #ffffff; -fx-border-color: #e2e8f0; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #334155; -fx-font-weight: 600; -fx-font-size: 12px; -fx-cursor: hand;"));
-        leaveBtn.setOnAction(e -> showRoomSelectorMenu(leaveBtn));
+        leaveBtn.setOnAction(e -> {
+            if (onLeaveRoom != null) {
+                onLeaveRoom.run();
+            } else {
+                showRoomSelectorMenu(leaveBtn);
+            }
+        });
 
         // Options button: •••
         Button moreBtn = new Button("•••");
@@ -142,7 +163,7 @@ public class MusicRoomView extends VBox {
             if (onInviteFriends != null) onInviteFriends.run();
         });
 
-        rightActions.getChildren().addAll(badgePill, leaveBtn, moreBtn);
+        rightActions.getChildren().addAll(badgePill, inviteBtn, leaveBtn, moreBtn);
         header.getChildren().addAll(titleCol, rightActions);
 
         getChildren().add(header);
@@ -631,17 +652,49 @@ public class MusicRoomView extends VBox {
         MusicRoom room = player.getCurrentRoom();
         if (room == null) return;
 
-        List<String> list = room.getListeners();
-        // Listener 1: Lan
-        String name1 = (list.size() > 0) ? list.get(0) : "Lan";
-        listenersBox.getChildren().add(createListenerAvatar(name1, "#f43f5e", "ııl|ıı"));
+        List<String> list = new ArrayList<>(room.getListeners());
+        String myName = (currentUser != null && currentUser.displayName() != null && !currentUser.displayName().isBlank())
+                ? currentUser.displayName() : (currentUser != null ? currentUser.username() : "Bạn");
+        if (!list.contains(myName) && currentUser != null && !list.contains(currentUser.username())) {
+            list.add(0, myName);
+        }
 
-        // Listener 2: Minh
-        String name2 = (list.size() > 1) ? list.get(1) : "Minh";
-        listenersBox.getChildren().add(createListenerAvatar(name2, "#6366f1", "ııl|ıı"));
+        String[] colors = {"#f43f5e", "#6366f1", "#06b6d4", "#10b981", "#8b5cf6"};
+        int count = Math.min(list.size(), 3);
+        for (int i = 0; i < count; i++) {
+            String name = list.get(i);
+            String color = colors[i % colors.length];
+            listenersBox.getChildren().add(createListenerAvatar(name, color, "ııl|ıı"));
+        }
+        if (list.size() > 3) {
+            listenersBox.getChildren().add(createOverlappingAvatar("+" + (list.size() - 3)));
+        }
 
-        // Listener 3: Bạn +3
-        listenersBox.getChildren().add(createOverlappingAvatar("Bạn +3"));
+        // Add an invite friend avatar button right inside listenersBox
+        VBox inviteBox = new VBox(4);
+        inviteBox.setAlignment(Pos.CENTER);
+        inviteBox.setCursor(Cursor.HAND);
+        StackPane plusCircle = new StackPane();
+        Circle c = new Circle(19);
+        c.setFill(Color.web("#f1f5f9"));
+        c.setStroke(Color.web("#cbd5e1"));
+        c.setStrokeWidth(1.5);
+        c.getStrokeDashArray().addAll(4.0, 4.0);
+        Label plusSign = new Label("＋");
+        plusSign.setStyle("-fx-font-size: 15px; -fx-font-weight: 800; -fx-text-fill: #4f46e5;");
+        plusCircle.getChildren().addAll(c, plusSign);
+
+        Label inviteLbl = new Label("Mời bạn");
+        inviteLbl.setStyle("-fx-font-size: 11px; -fx-font-weight: 600; -fx-text-fill: #4f46e5;");
+
+        Region sp = new Region();
+        sp.setPrefHeight(12);
+
+        inviteBox.getChildren().addAll(plusCircle, inviteLbl, sp);
+        inviteBox.setOnMouseClicked(e -> {
+            if (onInviteFriends != null) onInviteFriends.run();
+        });
+        listenersBox.getChildren().add(inviteBox);
     }
 
     private VBox createListenerAvatar(String name, String waveColor, String waveText) {
@@ -708,6 +761,12 @@ public class MusicRoomView extends VBox {
     // =========================================================================
     private void showRoomSelectorMenu(javafx.scene.Node anchor) {
         ContextMenu menu = new ContextMenu();
+        if (onLeaveRoom != null) {
+            MenuItem loungeItem = new MenuItem("🚪 Rời phòng về sảnh chờ...");
+            loungeItem.setOnAction(e -> onLeaveRoom.run());
+            menu.getItems().add(loungeItem);
+            menu.getItems().add(new SeparatorMenuItem());
+        }
         for (MusicRoom r : player.getRooms()) {
             MenuItem item = new MenuItem((r.getId().equals(player.getCurrentRoom().getId()) ? "✔ " : "   ") + r.getName());
             item.setOnAction(e -> {

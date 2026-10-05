@@ -24,7 +24,10 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.Clipboard;
@@ -115,11 +118,11 @@ public final class StudyroomApp extends Application {
             node = new TcpChatNode(packet -> Platform.runLater(() -> {
                 if (packet.body().startsWith("MUSIC_SYNC|")) {
                     String[] parts = packet.body().split("\\|", 5);
-                    if (parts.length >= 4 && "INVITE".equals(parts[2]) && user.username().equals(parts[3])) {
+                    if (parts.length >= 4 && "INVITE".equals(parts[2]) && user.username().equalsIgnoreCase(parts[3])) {
                         String roomId = parts[1];
                         Alert invAlert = new Alert(Alert.AlertType.CONFIRMATION);
                         invAlert.setTitle("Lời mời nghe nhạc");
-                        invAlert.setHeaderText(packet.sender() + " mời bạn vào phòng nghe nhạc Spotify!");
+                        invAlert.setHeaderText(packet.sender() + " mời bạn vào phòng nghe nhạc!");
                         invAlert.setContentText("Bạn có muốn vào phòng nghe nhạc cùng " + packet.sender() + " không?");
                         if (scene != null && scene.getWindow() != null) invAlert.initOwner(scene.getWindow());
                         invAlert.showAndWait().ifPresent(res -> {
@@ -130,6 +133,17 @@ public final class StudyroomApp extends Application {
                         });
                     } else {
                         musicPlayer.handlePeerSync(packet.sender(), packet.body());
+                    }
+                } else if (packet.body().startsWith("INCOMING_CALL|")) {
+                    String[] parts = packet.body().split("\\|", 7);
+                    if (parts.length >= 6 && user.username().equalsIgnoreCase(parts[5].trim())) {
+                        String callId = parts[1];
+                        String roomId = parts[2];
+                        String callerUser = parts[3];
+                        String callerName = parts[4];
+                        String callType = parts.length > 6 ? parts[6] : "VOICE";
+                        CallRepository.CallSession s = new CallRepository.CallSession(callId, roomId, callerName, callerUser, callType, "RINGING");
+                        promptIncomingCall(s);
                     }
                 } else if (selectedRoomId != null) {
                     addMessage(selectedRoomId, packet.sender(), packet.body(), false, true);
@@ -143,23 +157,21 @@ public final class StudyroomApp extends Application {
 
         Timer callChecker = new Timer(true);
         callChecker.scheduleAtFixedRate(new TimerTask() {
-            private String handledCallId = null;
             @Override
             public void run() {
                 try {
                     CallRepository.CallSession incoming = callRepo.getIncomingDirectCall(user.username());
-                    if (incoming != null && !incoming.callId().equals(handledCallId)) {
-                        handledCallId = incoming.callId();
+                    if (incoming != null) {
                         Platform.runLater(() -> promptIncomingCall(incoming));
                     }
                 } catch (Exception ignored) { }
             }
-        }, 1500, 2000);
+        }, 1000, 1500);
     }
     private VBox sidebar() {
         VBox bar = new VBox(12); bar.getStyleClass().add("sidebar");
         Label logo = new Label("✨  Studyroom"); logo.getStyleClass().add("brand");
-        Button chat = nav("💬", "Trò chuyện", this::showChat); Button room = nav("👥", "Phòng chung", this::showRoom); Button music = nav("🎵", "Nghe nhạc", this::showMusic); Button profile = nav("👤", "Hồ sơ", this::showProfile);
+        Button chat = nav("💬", "Trò chuyện", this::showChat); Button room = nav("👥", "Phòng chung", this::showRoom); Button music = nav("🎵", "Nghe nhạc", this::showMusicLounge); Button profile = nav("👤", "Hồ sơ", this::showProfile);
         Region gap = new Region(); VBox.setVgrow(gap, Priority.ALWAYS);
         HBox meBox = new HBox(10);
         meBox.setAlignment(Pos.CENTER_LEFT);
@@ -192,8 +204,31 @@ public final class StudyroomApp extends Application {
     private Region spacer(double h) { Region r = new Region(); r.setMinHeight(h); return r; }
     private void base(String title, String caption) { content.getChildren().clear(); content.getStyleClass().setAll("workspace"); content.setPadding(new Insets(26, 30, 20, 30)); Label h = new Label(title); h.getStyleClass().add("page-title"); Label c = new Label(caption); c.getStyleClass().add("muted"); content.getChildren().addAll(h, c, spacer(18)); }
 
-    private void showChat() { showChat(null, "", false); }
+    private String currentDirectUsername = null;
+
+    private void showChat() { showChat(null, "", false, null); }
     private void showChat(String roomId, String conversationName, boolean group) {
+        showChat(roomId, conversationName, group, null);
+    }
+    private void showChat(String roomId, String conversationName, boolean group, String directUsername) {
+        this.currentDirectUsername = directUsername;
+        if (!group && currentDirectUsername == null && roomId != null) {
+            for (User f : friendRepo.friends(user.username())) {
+                if (directRoomId(user.username(), f.username()).equals(roomId)) {
+                    this.currentDirectUsername = f.username();
+                    break;
+                }
+            }
+            if (this.currentDirectUsername == null) {
+                List<ChatRepository.Message> msgs = chatRepository.recent(roomId, 10);
+                for (ChatRepository.Message m : msgs) {
+                    if (!m.sender().equalsIgnoreCase(user.displayName()) && !m.sender().equalsIgnoreCase(user.username())) {
+                        this.currentDirectUsername = m.sender();
+                        break;
+                    }
+                }
+            }
+        }
         if (shell != null && shell.getBottom() == null && bottomMusicBar != null) shell.setBottom(bottomMusicBar);
         refreshSidebar();
         selectedRoomId = roomId;
@@ -423,7 +458,7 @@ public final class StudyroomApp extends Application {
         HBox.setHgrow(copy, Priority.ALWAYS);
         row.getStyleClass().addAll("thread", active ? "thread-active" : "");
         row.setAccessibleText(action + nameText);
-        row.setOnMouseClicked(e -> showChat(roomId, nameText, group));
+        row.setOnMouseClicked(e -> showChat(roomId, nameText, group, personUsername));
         return row;
     }
     private StackPane userAvatar(String usernameOrName, String initials, String style, double size) {
@@ -1455,7 +1490,12 @@ public final class StudyroomApp extends Application {
         CallRepository.CallSession session = callRepo.getActiveCall(roomId);
         if (session == null) {
             String myIp = VoiceEngine.getLocalIp();
-            session = callRepo.startCall(roomId, roomName, user.username(), user.displayName(), callType, 5100, myIp);
+            String targetUser = "DIRECT".equalsIgnoreCase(callType) ? currentDirectUsername : null;
+            session = callRepo.startCall(roomId, roomName, user.username(), user.displayName(), targetUser, callType, 5100, myIp);
+            if (node != null) {
+                String pkt = "INCOMING_CALL|" + session.callId() + "|" + roomId + "|" + user.username() + "|" + user.displayName() + "|" + (targetUser != null ? targetUser : "") + "|" + callType;
+                node.broadcast(user.displayName(), pkt);
+            }
         }
         final CallRepository.CallSession finalSession = session;
         CallWindow callWin = new CallWindow(session, user, callRepo);
@@ -1531,7 +1571,13 @@ public final class StudyroomApp extends Application {
         }
     }
 
+    private final Set<String> promptedCallIds = Collections.synchronizedSet(new HashSet<>());
+
     private void promptIncomingCall(CallRepository.CallSession incoming) {
+        if (incoming == null || incoming.callId() == null) return;
+        if (!promptedCallIds.add(incoming.callId())) {
+            return;
+        }
         // ── 1. Start ringtone ────────────────────────────────────────────────
         Clip ringtone = generateRingtone();
         Runnable stopRing = () -> {
@@ -3224,8 +3270,150 @@ public final class StudyroomApp extends Application {
         content.getStyleClass().setAll("workspace");
         content.setPadding(Insets.EMPTY);
         content.setSpacing(0);
-        MusicRoomView roomView = new MusicRoomView(musicPlayer, user, this::showInviteMusicFriendsDialog, this::toast);
+        MusicRoomView roomView = new MusicRoomView(musicPlayer, user, this::showInviteMusicFriendsDialog, this::showMusicLounge, this::toast);
         content.getChildren().add(roomView);
+    }
+
+    private void showMusicLounge() {
+        refreshSidebar();
+        if (shell != null && shell.getBottom() == null && bottomMusicBar != null) {
+            shell.setBottom(bottomMusicBar);
+        }
+        base("Sảnh phòng nghe nhạc · StudyTogether 🎧", "Không gian âm nhạc trực tuyến, cùng nghe & tập trung học tập");
+
+        HBox topBar = new HBox(12);
+        topBar.setAlignment(Pos.CENTER_LEFT);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button currentRoomBtn = new Button("🎵 Phòng đang nghe");
+        currentRoomBtn.getStyleClass().addAll("button");
+        currentRoomBtn.setOnAction(e -> showMusic());
+
+        Button inviteBtn = new Button("👥 Mời bạn bè");
+        inviteBtn.getStyleClass().addAll("button");
+        inviteBtn.setOnAction(e -> showInviteMusicFriendsDialog());
+
+        Button createBtn = new Button("＋ Tạo phòng nghe nhạc");
+        createBtn.getStyleClass().addAll("button", "button-primary");
+        createBtn.setOnAction(e -> showCreateMusicRoomDialog());
+
+        topBar.getChildren().addAll(spacer, currentRoomBtn, inviteBtn, createBtn);
+        content.getChildren().add(topBar);
+
+        FlowPane grid = new FlowPane(18, 18);
+        grid.setPadding(new Insets(14, 0, 20, 0));
+
+        List<MusicRoom> rooms = musicPlayer.getRooms();
+        for (MusicRoom r : rooms) {
+            VBox card = new VBox(12);
+            card.getStyleClass().add("course-card");
+            card.setStyle("-fx-background-color: white; -fx-background-radius: 18; -fx-padding: 18; -fx-border-color: #f1f5f9; -fx-border-radius: 18; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.04), 10, 0, 0, 2); -fx-pref-width: 330;");
+
+            HBox cardHeader = new HBox(8);
+            cardHeader.setAlignment(Pos.CENTER_LEFT);
+            Label iconLbl = new Label("🎧");
+            iconLbl.setStyle("-fx-font-size: 18px;");
+
+            Label codeBadge = new Label(r.isUserCreated() ? "PHÒNG BẠN TẠO" : "STUDYTOGETHER");
+            codeBadge.setStyle("-fx-background-color: #ede9fe; -fx-text-fill: #6366f1; -fx-font-weight: 800; -fx-font-size: 11px; -fx-padding: 3 8; -fx-background-radius: 6;");
+
+            Region hgap = new Region();
+            HBox.setHgrow(hgap, Priority.ALWAYS);
+
+            int listenerCount = r.getListeners().size();
+            Label membersLbl = new Label("📶 " + listenerCount + " đang nghe");
+            membersLbl.setStyle("-fx-font-size: 12px; -fx-text-fill: #f43f5e; -fx-font-weight: bold;");
+            cardHeader.getChildren().addAll(iconLbl, codeBadge, hgap, membersLbl);
+
+            Label titleLbl = new Label(r.getName());
+            titleLbl.setStyle("-fx-font-size: 17px; -fx-font-weight: 800; -fx-text-fill: -ink;");
+            titleLbl.setWrapText(true);
+
+            Label descLbl = new Label(r.getDescription() != null && !r.getDescription().isBlank() ? r.getDescription() : "Cùng nghe nhạc & tập trung học tập");
+            descLbl.getStyleClass().add("muted");
+            descLbl.setWrapText(true);
+            descLbl.setMaxHeight(40);
+
+            HBox trackPreview = new HBox(6);
+            trackPreview.setAlignment(Pos.CENTER_LEFT);
+            Label musicNote = new Label("🎵");
+            String songTitle = !r.getPlaylist().isEmpty() ? r.getPlaylist().get(0).title() : "Chưa có bài hát trong playlist";
+            Label songLbl = new Label(songTitle);
+            songLbl.setStyle("-fx-font-size: 12px; -fx-text-fill: #4b5563; -fx-font-weight: 600;");
+            trackPreview.getChildren().addAll(musicNote, songLbl);
+
+            HBox meta = new HBox(12);
+            meta.setAlignment(Pos.CENTER_LEFT);
+            Label hostLbl = new Label("Chủ phòng: @" + r.getOwnerDisplayName());
+            hostLbl.setStyle("-fx-font-size: 12px; -fx-text-fill: -muted;");
+            HBox.setHgrow(hostLbl, Priority.ALWAYS);
+
+            Label tracksCountLbl = new Label(r.getPlaylist().size() + " bài");
+            tracksCountLbl.setStyle("-fx-font-size: 11px; -fx-background-color: #f3f4f6; -fx-padding: 2 6; -fx-background-radius: 4; -fx-text-fill: #4b5563;");
+            meta.getChildren().addAll(hostLbl, tracksCountLbl);
+
+            boolean isCurrent = musicPlayer.getCurrentRoom() != null && musicPlayer.getCurrentRoom().getId().equals(r.getId());
+
+            Button enterBtn = new Button(isCurrent ? "Đang ở phòng này · Quay lại 🎧" : "Vào phòng nghe ngay 🎧");
+            enterBtn.getStyleClass().addAll("button", "button-primary");
+            enterBtn.setStyle(isCurrent
+                ? "-fx-background-color: linear-gradient(to right, #4f46e5, #7c3aed); -fx-text-fill: white; -fx-font-weight: 800; -fx-background-radius: 12; -fx-padding: 8 16; -fx-cursor: hand;"
+                : "-fx-background-color: #4f46e5; -fx-text-fill: white; -fx-font-weight: 700; -fx-background-radius: 12; -fx-padding: 8 16; -fx-cursor: hand;");
+            enterBtn.setMaxWidth(Double.MAX_VALUE);
+            enterBtn.setOnAction(e -> {
+                musicPlayer.switchRoom(r.getId());
+                showMusic();
+            });
+
+            card.getChildren().addAll(cardHeader, titleLbl, descLbl, trackPreview, meta, enterBtn);
+            grid.getChildren().add(card);
+        }
+
+        ScrollPane scroll = new ScrollPane(grid);
+        scroll.setFitToWidth(true);
+        scroll.getStyleClass().add("thread-scroll");
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+        content.getChildren().add(scroll);
+    }
+
+    private void showCreateMusicRoomDialog() {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Tạo phòng nghe nhạc mới");
+        dialog.setHeaderText("Thiết lập phòng nghe nhạc của bạn");
+        if (scene != null && scene.getWindow() != null) dialog.initOwner(scene.getWindow());
+
+        VBox form = new VBox(12);
+        form.setPadding(new Insets(16));
+        form.setPrefWidth(380);
+
+        TextField nameF = new TextField();
+        nameF.setPromptText("Tên phòng (ví dụ: Chill cùng tôi, Lofi làm bài...)");
+
+        TextField descF = new TextField();
+        descF.setPromptText("Mô tả ngắn");
+
+        form.getChildren().addAll(
+            new Label("Tên phòng:"), nameF,
+            new Label("Mô tả:"), descF
+        );
+
+        dialog.getDialogPane().setContent(form);
+        ButtonType createType = new ButtonType("Tạo phòng", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(createType, ButtonType.CANCEL);
+
+        dialog.setResultConverter(btn -> {
+            if (btn == createType && !nameF.getText().isBlank()) {
+                String rName = nameF.getText().trim();
+                String desc = descF.getText().isBlank() ? "Cùng nghe nhạc & học tập" : descF.getText().trim();
+                musicPlayer.createUserRoom(rName, desc, "linear-gradient(to bottom, #1e1b4b 0%, #0f172a 60%, #121212 100%)", "#7c5cff", "", user.username(), user.displayName());
+                showMusic();
+            }
+            return null;
+        });
+
+        dialog.show();
     }
 
     private void showInviteMusicFriendsDialog() {

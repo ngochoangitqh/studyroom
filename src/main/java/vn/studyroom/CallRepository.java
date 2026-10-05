@@ -13,6 +13,10 @@ public final class CallRepository {
     }
 
     public CallSession startCall(String roomId, String roomName, String hostUsername, String hostDisplayName, String callType, int udpPort, String ipAddress) {
+        return startCall(roomId, roomName, hostUsername, hostDisplayName, null, callType, udpPort, ipAddress);
+    }
+
+    public CallSession startCall(String roomId, String roomName, String hostUsername, String hostDisplayName, String receiverUsername, String callType, int udpPort, String ipAddress) {
         // End any previous active call in this room first
         endCallsInRoom(roomId);
 
@@ -21,13 +25,14 @@ public final class CallRepository {
 
         try (Connection c = database.connect()) {
             try (PreparedStatement q = c.prepareStatement(
-                    "INSERT INTO call_session(call_id, room_id, room_name, host_username, call_type, status) VALUES (?, ?, ?, ?, ?, ?)")) {
+                    "INSERT INTO call_session(call_id, room_id, room_name, host_username, receiver_username, call_type, status) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
                 q.setString(1, callId);
                 q.setString(2, roomId);
                 q.setString(3, roomName);
                 q.setString(4, hostUsername);
-                q.setString(5, callType.toUpperCase());
-                q.setString(6, initialStatus);
+                q.setString(5, receiverUsername);
+                q.setString(6, callType.toUpperCase());
+                q.setString(7, initialStatus);
                 q.executeUpdate();
             }
 
@@ -63,32 +68,41 @@ public final class CallRepository {
     }
 
     public CallSession getIncomingDirectCall(String username) {
-        // Direct room IDs follow format "direct:<uuid>" and other user is participant in friendship
         String sql = """
             SELECT c.call_id, c.room_id, c.room_name, c.host_username, c.call_type, c.status
             FROM call_session c
-            WHERE c.call_type = 'DIRECT'
-              AND c.status = 'RINGING'
+            WHERE c.status = 'RINGING'
               AND c.host_username <> ?
-              AND c.created_at >= CURRENT_TIMESTAMP - INTERVAL '45 seconds'
-              AND c.room_id LIKE 'direct:%'
-              AND EXISTS (
-                  SELECT 1 FROM friendship f
-                  WHERE (f.sender = ? AND f.receiver = c.host_username)
-                     OR (f.receiver = ? AND f.sender = c.host_username)
+              AND (
+                  c.receiver_username = ?
+                  OR (
+                      c.call_type = 'DIRECT'
+                      AND c.room_id LIKE 'direct:%'
+                      AND (
+                          c.receiver_username IS NULL
+                          OR EXISTS (
+                              SELECT 1 FROM friendship f
+                              WHERE (f.sender = ? AND f.receiver = c.host_username)
+                                 OR (f.receiver = ? AND f.sender = c.host_username)
+                          )
+                      )
+                  )
               )
+              AND c.created_at >= CURRENT_TIMESTAMP - INTERVAL '60 seconds'
             ORDER BY c.created_at DESC LIMIT 1
         """;
         try (Connection c = database.connect(); PreparedStatement q = c.prepareStatement(sql)) {
             q.setString(1, username);
             q.setString(2, username);
             q.setString(3, username);
+            q.setString(4, username);
             ResultSet rs = q.executeQuery();
             if (rs.next()) {
                 return new CallSession(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6));
             }
             return null;
         } catch (SQLException e) {
+            System.err.println("[CallRepository] Error querying incoming call: " + e.getMessage());
             return null;
         }
     }
