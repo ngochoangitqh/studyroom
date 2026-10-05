@@ -50,6 +50,7 @@ import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
 import javax.sound.sampled.DataLine;
 import javax.sound.sampled.Mixer;
+import javax.sound.sampled.FloatControl;
 
 
 public final class StudyroomApp extends Application {
@@ -59,6 +60,7 @@ public final class StudyroomApp extends Application {
     private final FriendRepository friendRepo = new FriendRepository(database);
     private final CallRepository callRepo = new CallRepository(database);
     private final CourseRepository courseRepo = new CourseRepository(database);
+    private final MusicPresenceRepository musicPresenceRepo = new MusicPresenceRepository(database);
     private final BorderPane shell = new BorderPane();
     private final VBox content = new VBox();
     private final MusicPlayerService musicPlayer = MusicPlayerService.getInstance();
@@ -166,9 +168,35 @@ public final class StudyroomApp extends Application {
                     if (incoming != null) {
                         Platform.runLater(() -> promptIncomingCall(incoming));
                     }
+                    MusicPresenceRepository.MusicInvitation musicInv = musicPresenceRepo.getLatestPendingInvite(user.username());
+                    if (musicInv != null) {
+                        Platform.runLater(() -> promptIncomingMusicInvite(musicInv));
+                    }
                 } catch (Exception ignored) { }
             }
         }, 1000, 1500);
+    }
+
+    private final Set<Long> promptedMusicInviteIds = Collections.synchronizedSet(new HashSet<>());
+    private void promptIncomingMusicInvite(MusicPresenceRepository.MusicInvitation inv) {
+        if (inv == null || !promptedMusicInviteIds.add(inv.id())) return;
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Lời mời nghe nhạc");
+        alert.setHeaderText("🎵 " + inv.senderDisplayName() + " mời bạn vào nghe nhạc cùng!");
+        alert.setContentText("Phòng: \"" + inv.roomName() + "\"\nBạn có muốn tham gia phòng nghe nhạc cùng bạn bè ngay bây giờ không?");
+        ButtonType joinType = new ButtonType("🎧 Tham gia ngay", ButtonBar.ButtonData.OK_DONE);
+        ButtonType laterType = new ButtonType("Để sau", ButtonBar.ButtonData.CANCEL_CLOSE);
+        alert.getButtonTypes().setAll(joinType, laterType);
+        if (scene != null && scene.getWindow() != null) alert.initOwner(scene.getWindow());
+        alert.showAndWait().ifPresent(res -> {
+            if (res == joinType) {
+                musicPresenceRepo.acceptInvite(inv.id());
+                musicPlayer.switchRoom(inv.roomId(), inv.roomName());
+                showMusic();
+            } else {
+                musicPresenceRepo.dismissInvite(inv.id());
+            }
+        });
     }
     private VBox sidebar() {
         VBox bar = new VBox(12); bar.getStyleClass().add("sidebar");
@@ -297,10 +325,23 @@ public final class StudyroomApp extends Application {
         
         VBox groupCopy = new VBox(2); Label groupName = new Label(conversationName); groupName.getStyleClass().add("group-name"); Label groupMeta = new Label(metaText); groupMeta.getStyleClass().add("group-meta"); groupCopy.getChildren().addAll(groupName, groupMeta); Region push = new Region(); HBox.setHgrow(push, Priority.ALWAYS);
         Button addMember = iconButton("＋", "Thêm thành viên"); if (group) addMember.setOnAction(e -> showAddMemberDialog(roomId, conversationName)); else addMember.setVisible(false);
-        Button call = iconButton("📞", "Gọi thoại"); Button video = iconButton("📹", "Bật video"); Button search = iconButton("🔍", "Tìm trong trò chuyện"); Button more = iconButton("⋯", "Thông tin cuộc trò chuyện");
+        Button call = iconButton("📞", "Gọi thoại"); Button video = iconButton("📹", "Bật video");
+        Button musicRoomBtn = iconButton("🎵", "Phòng nghe nhạc cùng nhau");
+        musicRoomBtn.setOnAction(e -> {
+            if (!group && currentDirectUsername != null) {
+                MusicPresenceRepository.FriendMusicPresence fp = musicPresenceRepo.getFriendPresence(currentDirectUsername);
+                if (fp != null) {
+                    musicPlayer.switchRoom(fp.roomId(), fp.roomName());
+                    showMusic();
+                    return;
+                }
+            }
+            showInviteMusicFriendsDialog();
+        });
+        Button search = iconButton("🔍", "Tìm trong trò chuyện"); Button more = iconButton("⋯", "Thông tin cuộc trò chuyện");
         call.setOnAction(e -> startOrJoinCall(roomId, conversationName, group ? "GROUP" : "DIRECT", false));
         video.setOnAction(e -> startOrJoinCall(roomId, conversationName, group ? "GROUP" : "DIRECT", true));
-        head.getChildren().addAll(groupAvatar, groupCopy, push, addMember, call, video, search, more);
+        head.getChildren().addAll(groupAvatar, groupCopy, push, addMember, call, video, musicRoomBtn, search, more);
 
         Node infoPanel = buildChatInfoPanel(roomId, conversationName, group, conversationName);
 
@@ -319,6 +360,29 @@ public final class StudyroomApp extends Application {
             joinBtn.setOnAction(e -> startOrJoinCall(roomId, conversationName, "GROUP", false));
             callBanner.getChildren().addAll(bannerLabel, bSpacer, joinBtn);
             conversation.getChildren().add(callBanner);
+        }
+
+        if (!group && currentDirectUsername != null) {
+            MusicPresenceRepository.FriendMusicPresence friendMusic = musicPresenceRepo.getFriendPresence(currentDirectUsername);
+            if (friendMusic != null) {
+                HBox musicBanner = new HBox(12);
+                musicBanner.setAlignment(Pos.CENTER_LEFT);
+                musicBanner.setStyle("-fx-background-color: #1e1b4b; -fx-padding: 10 20; -fx-border-color: #6366f1 transparent transparent transparent;");
+                Label mIcon = new Label("🎵");
+                mIcon.setStyle("-fx-font-size: 16px;");
+                Label mLabel = new Label(conversationName + " đang nghe nhạc tại phòng \"" + friendMusic.roomName() + "\"");
+                mLabel.setStyle("-fx-text-fill: #a5b4fc; -fx-font-weight: bold; -fx-font-size: 13px;");
+                Region mSpacer = new Region();
+                HBox.setHgrow(mSpacer, Priority.ALWAYS);
+                Button joinMusicBtn = new Button("🎧 Tham gia nghe cùng");
+                joinMusicBtn.setStyle("-fx-background-color: #4f46e5; -fx-text-fill: white; -fx-font-weight: 800; -fx-background-radius: 12; -fx-padding: 6 16; -fx-cursor: hand;");
+                joinMusicBtn.setOnAction(e -> {
+                    musicPlayer.switchRoom(friendMusic.roomId(), friendMusic.roomName());
+                    showMusic();
+                });
+                musicBanner.getChildren().addAll(mIcon, mLabel, mSpacer, joinMusicBtn);
+                conversation.getChildren().add(musicBanner);
+            }
         }
 
         if (messageSyncTimer != null) {
@@ -767,6 +831,47 @@ public final class StudyroomApp extends Application {
                 ? (mine ? "-fx-background-color: transparent; -fx-padding: 0;" : "-fx-background-color: transparent; -fx-padding: 0;")
                 : "-fx-background-color: transparent; -fx-padding: 0;");
             bubble.getChildren().addAll(callCard, time);
+
+        } else if (text != null && text.startsWith("[MUSIC_INVITE:") && text.endsWith("]")) {
+            // === Shared Music Room Invitation Card ===
+            String inner = text.substring(14, text.length() - 1); // roomId:roomName
+            String[] parts = inner.split(":", 2);
+            String invRoomId = parts[0];
+            String invRoomName = parts.length > 1 ? parts[1] : "Phòng nghe nhạc";
+
+            VBox inviteCard = new VBox(10);
+            inviteCard.setPadding(new Insets(14, 16, 14, 16));
+            inviteCard.setStyle("-fx-background-color: linear-gradient(to bottom right, #1e1b4b, #312e81); -fx-background-radius: 18; -fx-min-width: 280; -fx-max-width: 340; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.15), 10, 0, 0, 3);");
+
+            HBox cardHead = new HBox(8);
+            cardHead.setAlignment(Pos.CENTER_LEFT);
+            Label musicIcon = new Label("🎧");
+            musicIcon.setStyle("-fx-font-family: 'Segoe UI Emoji', sans-serif; -fx-font-size: 20px;");
+            Label cardBadge = new Label("LỜI MỜI NGHE NHẠC");
+            cardBadge.setStyle("-fx-font-size: 11px; -fx-font-weight: 800; -fx-text-fill: #a5b4fc;");
+            cardHead.getChildren().addAll(musicIcon, cardBadge);
+
+            Label titleLbl = new Label(invRoomName);
+            titleLbl.setStyle("-fx-font-family: 'Segoe UI', Arial, sans-serif; -fx-font-size: 15px; -fx-font-weight: 800; -fx-text-fill: white;");
+            titleLbl.setWrapText(true);
+
+            Label descLbl = new Label(mine ? "Bạn đã gửi lời mời nghe nhạc tại phòng này" : (sender + " đã mời bạn cùng vào nghe nhạc!"));
+            descLbl.setStyle("-fx-font-family: 'Segoe UI', Arial, sans-serif; -fx-font-size: 12px; -fx-text-fill: #c7d2fe;");
+            descLbl.setWrapText(true);
+
+            Button joinBtn = new Button("🎧 Tham gia phòng nghe nhạc");
+            joinBtn.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif; -fx-background-color: #4f46e5; -fx-text-fill: white; -fx-font-weight: 800; -fx-font-size: 12px; -fx-background-radius: 12; -fx-padding: 8 16; -fx-cursor: hand;");
+            joinBtn.setMaxWidth(Double.MAX_VALUE);
+            joinBtn.setOnMouseEntered(e -> joinBtn.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif; -fx-background-color: #6366f1; -fx-text-fill: white; -fx-font-weight: 800; -fx-font-size: 12px; -fx-background-radius: 12; -fx-padding: 8 16; -fx-cursor: hand;"));
+            joinBtn.setOnMouseExited(e -> joinBtn.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif; -fx-background-color: #4f46e5; -fx-text-fill: white; -fx-font-weight: 800; -fx-font-size: 12px; -fx-background-radius: 12; -fx-padding: 8 16; -fx-cursor: hand;"));
+            joinBtn.setOnAction(e -> {
+                musicPlayer.switchRoom(invRoomId, invRoomName);
+                showMusic();
+            });
+
+            inviteCard.getChildren().addAll(cardHead, titleLbl, descLbl, joinBtn);
+            bubble.setStyle("-fx-background-color: transparent; -fx-padding: 0;");
+            bubble.getChildren().addAll(inviteCard, time);
 
         } else if (text != null && text.startsWith("[IMAGE:") && text.endsWith("]")) {
 
@@ -1493,6 +1598,14 @@ public final class StudyroomApp extends Application {
         if (session == null) {
             String myIp = VoiceEngine.getLocalIp();
             String targetUser = "DIRECT".equalsIgnoreCase(callType) ? currentDirectUsername : null;
+            if (targetUser == null && !"GROUP".equalsIgnoreCase(callType) && roomId != null && roomId.startsWith("direct:")) {
+                for (User f : friendRepo.friends(user.username())) {
+                    if (directRoomId(user.username(), f.username()).equals(roomId)) {
+                        targetUser = f.username();
+                        break;
+                    }
+                }
+            }
             session = callRepo.startCall(roomId, roomName, user.username(), user.displayName(), targetUser, callType, 5100, myIp);
             if (node != null) {
                 String pkt = "INCOMING_CALL|" + session.callId() + "|" + roomId + "|" + user.username() + "|" + user.displayName() + "|" + (targetUser != null ? targetUser : "") + "|" + callType;
@@ -1578,6 +1691,10 @@ public final class StudyroomApp extends Application {
                         if (m.isLineSupported(info)) {
                             Clip clip = (Clip) m.getLine(info);
                             clip.open(fmt, buf, 0, buf.length);
+                            try {
+                                FloatControl gain = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+                                gain.setValue(gain.getMaximum());
+                            } catch (Exception ignored) {}
                             clip.loop(Clip.LOOP_CONTINUOUSLY);
                             clips.add(clip);
                         }
@@ -1590,6 +1707,10 @@ public final class StudyroomApp extends Application {
                 try {
                     Clip defaultClip = (Clip) AudioSystem.getLine(info);
                     defaultClip.open(fmt, buf, 0, buf.length);
+                    try {
+                        FloatControl gain = (FloatControl) defaultClip.getControl(FloatControl.Type.MASTER_GAIN);
+                        gain.setValue(gain.getMaximum());
+                    } catch (Exception ignored) {}
                     defaultClip.loop(Clip.LOOP_CONTINUOUSLY);
                     clips.add(defaultClip);
                 } catch (Exception ignored) { }
@@ -1754,11 +1875,14 @@ public final class StudyroomApp extends Application {
         root.getChildren().addAll(rippleContainer, content);
 
         // ── 9. Button actions ────────────────────────────────────────────────
+        Timeline[] holder = new Timeline[2];
         Runnable closeAll = () -> {
             stopRing.run();
             shake.stop();
             blinkDots.stop();
             answerPulse.stop();
+            if (holder[0] != null) holder[0].stop();
+            if (holder[1] != null) holder[1].stop();
             callStage.close();
         };
 
@@ -1788,6 +1912,18 @@ public final class StudyroomApp extends Application {
         }));
         autoDismiss.setCycleCount(1);
         autoDismiss.play();
+        holder[0] = autoDismiss;
+
+        // Check if caller hung up or canceled
+        Timeline livenessCheck = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
+            List<CallRepository.Participant> pList = callRepo.getParticipants(incoming.callId());
+            if (pList.isEmpty()) {
+                closeAll.run();
+            }
+        }));
+        livenessCheck.setCycleCount(Timeline.INDEFINITE);
+        livenessCheck.play();
+        holder[1] = livenessCheck;
 
         // ── 10. Show ─────────────────────────────────────────────────────────
         Scene callScene = new Scene(root, 320, 420);
@@ -3301,7 +3437,13 @@ public final class StudyroomApp extends Application {
         content.getStyleClass().setAll("workspace");
         content.setPadding(Insets.EMPTY);
         content.setSpacing(0);
-        MusicRoomView roomView = new MusicRoomView(musicPlayer, user, this::showInviteMusicFriendsDialog, this::showMusicLounge, this::toast);
+        MusicTrack curTrk = musicPlayer.getCurrentTrack();
+        String curTitle = curTrk != null ? curTrk.title() : "";
+        musicPresenceRepo.updatePresence(user.username(), user.displayName(), musicPlayer.getCurrentRoom().getId(), musicPlayer.getCurrentRoom().getName(), curTitle);
+        MusicRoomView roomView = new MusicRoomView(musicPlayer, user, this::showInviteMusicFriendsDialog, () -> {
+            musicPresenceRepo.clearPresence(user.username());
+            showMusicLounge();
+        }, this::toast);
         content.getChildren().add(roomView);
     }
 
@@ -3332,6 +3474,40 @@ public final class StudyroomApp extends Application {
 
         topBar.getChildren().addAll(spacer, currentRoomBtn, inviteBtn, createBtn);
         content.getChildren().add(topBar);
+
+        List<MusicPresenceRepository.FriendMusicPresence> friendsListening = musicPresenceRepo.getFriendsListening(user.username());
+        if (!friendsListening.isEmpty()) {
+            VBox friendsBox = new VBox(10);
+            friendsBox.setPadding(new Insets(10, 0, 10, 0));
+            Label fSectionTitle = new Label("👥 Bạn bè đang nghe nhạc");
+            fSectionTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: 800; -fx-text-fill: #111827;");
+            FlowPane friendsGrid = new FlowPane(14, 14);
+            for (MusicPresenceRepository.FriendMusicPresence fp : friendsListening) {
+                HBox fCard = new HBox(12);
+                fCard.setAlignment(Pos.CENTER_LEFT);
+                fCard.setPadding(new Insets(12, 16, 12, 16));
+                fCard.setStyle("-fx-background-color: #f5f3ff; -fx-border-color: #ddd6fe; -fx-border-radius: 16; -fx-background-radius: 16; -fx-pref-width: 330;");
+                StackPane fAvt = userAvatar(fp.username(), initials(fp.displayName()), "avatar-person", 40);
+                VBox fMeta = new VBox(3);
+                Label fName = new Label(fp.displayName());
+                fName.setStyle("-fx-font-weight: 800; -fx-font-size: 13px; -fx-text-fill: #1e1b4b;");
+                Label fRoom = new Label("Đang ở phòng: " + fp.roomName());
+                fRoom.setStyle("-fx-font-size: 11px; -fx-text-fill: #6366f1; -fx-font-weight: 600;");
+                fMeta.getChildren().addAll(fName, fRoom);
+                Region fSp = new Region();
+                HBox.setHgrow(fSp, Priority.ALWAYS);
+                Button joinFBtn = new Button("🎧 Tham gia");
+                joinFBtn.setStyle("-fx-background-color: #4f46e5; -fx-text-fill: white; -fx-font-weight: 700; -fx-font-size: 11px; -fx-background-radius: 12; -fx-padding: 6 12; -fx-cursor: hand;");
+                joinFBtn.setOnAction(e -> {
+                    musicPlayer.switchRoom(fp.roomId(), fp.roomName());
+                    showMusic();
+                });
+                fCard.getChildren().addAll(fAvt, fMeta, fSp, joinFBtn);
+                friendsGrid.getChildren().add(fCard);
+            }
+            friendsBox.getChildren().addAll(fSectionTitle, friendsGrid);
+            content.getChildren().add(friendsBox);
+        }
 
         FlowPane grid = new FlowPane(18, 18);
         grid.setPadding(new Insets(14, 0, 20, 0));
@@ -3481,11 +3657,12 @@ public final class StudyroomApp extends Application {
                     invite.setDisable(true);
                     invite.setText("Đã mời ✓");
                     invite.setStyle("-fx-background-color: #282828; -fx-text-fill: #b3b3b3; -fx-font-size: 12px; -fx-background-radius: 16; -fx-padding: 6 14;");
+                    musicPresenceRepo.sendInvite(user.username(), user.displayName(), f.username(), musicPlayer.getCurrentRoom().getId(), musicPlayer.getCurrentRoom().getName());
                     String dRoom = directRoomId(user.username(), f.username());
-                    String msg = "🎵 Cùng nghe nhạc Spotify tại phòng \"" + musicPlayer.getCurrentRoom().getName() + "\" với mình nhé! Bấm vào 'Nghe nhạc' để tham gia!";
-                    addMessage(dRoom, user.displayName(), msg, true, true);
+                    String invitePayload = "[MUSIC_INVITE:" + musicPlayer.getCurrentRoom().getId() + ":" + musicPlayer.getCurrentRoom().getName() + "]";
+                    addMessage(dRoom, user.displayName(), invitePayload, true, true);
                     if (node != null) {
-                        node.broadcast(user.displayName(), msg);
+                        node.broadcast(user.displayName(), invitePayload);
                         node.broadcast(user.displayName(), "MUSIC_SYNC|" + musicPlayer.getCurrentRoom().getId() + "|INVITE|" + f.username() + "|" + user.displayName());
                     }
                     toast("Đã gửi lời mời nghe nhạc tới " + f.displayName());
@@ -3802,6 +3979,7 @@ public final class StudyroomApp extends Application {
         // Disabled: do not spawn toast popup labels that cover buttons or stack up on UI
     }
     @Override public void stop() {
+        if (user != null) musicPresenceRepo.clearPresence(user.username());
         musicPlayer.stop();
         classroomVoice.stop();
         webcamStream.stop();

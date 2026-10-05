@@ -69,9 +69,20 @@ public final class CallRepository {
 
     public CallSession getIncomingDirectCall(String username) {
         String sql = """
-            SELECT c.call_id, c.room_id, c.room_name, c.host_username, c.call_type, c.status
+            SELECT c.call_id, c.room_id, COALESCE(u.display_name, c.room_name), c.host_username, c.call_type, c.status
             FROM call_session c
-            WHERE c.status = 'RINGING'
+            LEFT JOIN app_user u ON c.host_username = u.username
+            WHERE (
+                c.status = 'RINGING'
+                OR (
+                    c.call_type = 'DIRECT'
+                    AND c.status = 'ACTIVE'
+                    AND NOT EXISTS (
+                        SELECT 1 FROM call_participant cp 
+                        WHERE cp.call_id = c.call_id AND cp.username = ? AND cp.status = 'CONNECTED'
+                    )
+                )
+            )
               AND c.host_username <> ?
               AND (
                   c.receiver_username = ?
@@ -96,6 +107,7 @@ public final class CallRepository {
             q.setString(2, username);
             q.setString(3, username);
             q.setString(4, username);
+            q.setString(5, username);
             ResultSet rs = q.executeQuery();
             if (rs.next()) {
                 return new CallSession(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6));
@@ -123,8 +135,9 @@ public final class CallRepository {
             }
 
             try (PreparedStatement q = c.prepareStatement(
-                    "UPDATE call_session SET status = 'ACTIVE' WHERE call_id = ? AND status = 'RINGING'")) {
+                    "UPDATE call_session SET status = 'ACTIVE' WHERE call_id = ? AND status = 'RINGING' AND host_username <> ?")) {
                 q.setString(1, callId);
+                q.setString(2, username);
                 q.executeUpdate();
             }
         } catch (SQLException e) {

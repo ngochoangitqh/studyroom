@@ -503,6 +503,10 @@ public final class MusicPlayerService {
     }
 
     public void switchRoom(String roomId) {
+        switchRoom(roomId, null);
+    }
+
+    public void switchRoom(String roomId, String roomName) {
         for (MusicRoom r : rooms) {
             if (r.getId().equals(roomId)) {
                 if (currentRoom != null) {
@@ -518,9 +522,19 @@ public final class MusicPlayerService {
                 if (isPlaying) {
                     syncTrackPlayback();
                 }
-                break;
+                return;
             }
         }
+        // If not found in local list, create dynamically and join
+        String name = (roomName != null && !roomName.isBlank()) ? roomName : "Phòng nghe nhạc của bạn bè";
+        MusicRoom newRoom = new MusicRoom(roomId, name,
+            "Cùng nghe nhạc & tập trung học tập 🎧",
+            "linear-gradient(to bottom, #1e1b4b 0%, #0f172a 60%, #121212 100%)", "#6366f1",
+            "friend", name, true, null,
+            "https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=600&q=80",
+            new ArrayList<>(loadUserPlaylist()), new ArrayList<>(List.of(currentUsername)));
+        rooms.add(newRoom);
+        switchRoom(roomId, name);
     }
 
     public void play() {
