@@ -113,6 +113,8 @@ public final class StudyroomApp extends Application {
     private TextField field(String label, String prompt) { TextField f = new TextField(); f.setPromptText(label + " · " + prompt); f.getStyleClass().add("input"); return f; }
 
     private void openWorkspace() {
+        musicPlayer.setMusicPresenceRepository(musicPresenceRepo);
+        musicPlayer.setCurrentUsername(user.username());
         musicPlayer.setPeerNode(node, user.displayName());
         bottomMusicBar = new BottomMusicBar(musicPlayer, this::showMusic);
         shell.getStyleClass().add("app-shell"); shell.setLeft(sidebar()); shell.setCenter(content); shell.setBottom(bottomMusicBar); showChat();

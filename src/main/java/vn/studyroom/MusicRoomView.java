@@ -1,5 +1,8 @@
 package vn.studyroom;
 
+import javafx.animation.Animation;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -13,7 +16,9 @@ import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
+import javafx.util.Duration;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -62,6 +67,11 @@ public class MusicRoomView extends VBox {
     private Button addBtn;
     private VBox suggestionsBox;
 
+    // Realtime Database Sync
+    private Timeline syncTimeline;
+    private long lastSyncedVersion = -1;
+    private volatile boolean isSyncing = false;
+
     // Default aesthetic cover
     private static final String DEFAULT_COVER = "https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=600&q=80";
 
@@ -85,6 +95,15 @@ public class MusicRoomView extends VBox {
 
         setupSubscriptions();
         refreshAll();
+        startRoomSync();
+
+        sceneProperty().addListener((obs, oldS, newS) -> {
+            if (newS == null) {
+                stopRoomSync();
+            } else {
+                startRoomSync();
+            }
+        });
     }
 
     // =========================================================================
@@ -133,22 +152,27 @@ public class MusicRoomView extends VBox {
         badgePill.getChildren().addAll(waveIcon, listenerBadgeLbl);
 
         // Invite friends button
-        Button inviteBtn = new Button("➕ Mời bạn");
-        inviteBtn.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif; -fx-background-color: #f1f5f9; -fx-border-color: #cbd5e1; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #1e293b; -fx-font-weight: 700; -fx-font-size: 12px; -fx-cursor: hand;");
-        inviteBtn.setOnMouseEntered(e -> inviteBtn.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif; -fx-background-color: #e2e8f0; -fx-border-color: #94a3b8; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #0f172a; -fx-font-weight: 700; -fx-font-size: 12px; -fx-cursor: hand;"));
-        inviteBtn.setOnMouseExited(e -> inviteBtn.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif; -fx-background-color: #f1f5f9; -fx-border-color: #cbd5e1; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #1e293b; -fx-font-weight: 700; -fx-font-size: 12px; -fx-cursor: hand;"));
+        Label inviteIcon = new Label("➕");
+        inviteIcon.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol'; -fx-font-size: 11px;");
+        Button inviteBtn = new Button("Mời bạn", inviteIcon);
+        inviteBtn.setGraphicTextGap(6);
+        inviteBtn.setStyle("-fx-font-family: 'Segoe UI', Arial, sans-serif; -fx-background-color: #f1f5f9; -fx-border-color: #cbd5e1; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #1e293b; -fx-font-weight: 700; -fx-font-size: 12px; -fx-cursor: hand;");
+        inviteBtn.setOnMouseEntered(e -> inviteBtn.setStyle("-fx-font-family: 'Segoe UI', Arial, sans-serif; -fx-background-color: #e2e8f0; -fx-border-color: #94a3b8; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #0f172a; -fx-font-weight: 700; -fx-font-size: 12px; -fx-cursor: hand;"));
+        inviteBtn.setOnMouseExited(e -> inviteBtn.setStyle("-fx-font-family: 'Segoe UI', Arial, sans-serif; -fx-background-color: #f1f5f9; -fx-border-color: #cbd5e1; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #1e293b; -fx-font-weight: 700; -fx-font-size: 12px; -fx-cursor: hand;"));
         inviteBtn.setOnAction(e -> {
             if (onInviteFriends != null) onInviteFriends.run();
         });
 
         // Leave / Switch Room button
         Label leaveIcon = new Label("🚪");
-        leaveIcon.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; -fx-font-size: 13px;");
-        Button leaveBtn = new Button(" Rời phòng", leaveIcon);
-        leaveBtn.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif; -fx-background-color: #ffffff; -fx-border-color: #e2e8f0; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #334155; -fx-font-weight: 600; -fx-font-size: 12px; -fx-cursor: hand;");
-        leaveBtn.setOnMouseEntered(e -> leaveBtn.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif; -fx-background-color: #fee2e2; -fx-border-color: #fca5a5; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #dc2626; -fx-font-weight: 600; -fx-font-size: 12px; -fx-cursor: hand;"));
-        leaveBtn.setOnMouseExited(e -> leaveBtn.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif; -fx-background-color: #ffffff; -fx-border-color: #e2e8f0; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #334155; -fx-font-weight: 600; -fx-font-size: 12px; -fx-cursor: hand;"));
+        leaveIcon.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol'; -fx-font-size: 13px;");
+        Button leaveBtn = new Button("Rời phòng", leaveIcon);
+        leaveBtn.setGraphicTextGap(6);
+        leaveBtn.setStyle("-fx-font-family: 'Segoe UI', Arial, sans-serif; -fx-background-color: #ffffff; -fx-border-color: #e2e8f0; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #334155; -fx-font-weight: 600; -fx-font-size: 12px; -fx-cursor: hand;");
+        leaveBtn.setOnMouseEntered(e -> leaveBtn.setStyle("-fx-font-family: 'Segoe UI', Arial, sans-serif; -fx-background-color: #fee2e2; -fx-border-color: #fca5a5; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #dc2626; -fx-font-weight: 600; -fx-font-size: 12px; -fx-cursor: hand;"));
+        leaveBtn.setOnMouseExited(e -> leaveBtn.setStyle("-fx-font-family: 'Segoe UI', Arial, sans-serif; -fx-background-color: #ffffff; -fx-border-color: #e2e8f0; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #334155; -fx-font-weight: 600; -fx-font-size: 12px; -fx-cursor: hand;"));
         leaveBtn.setOnAction(e -> {
+            stopRoomSync();
             if (onLeaveRoom != null) {
                 onLeaveRoom.run();
             } else {
@@ -470,7 +494,11 @@ public class MusicRoomView extends VBox {
         player.addPlayStateListener(p -> Platform.runLater(this::refreshPlayState));
         player.addTimeUpdateListener(s -> Platform.runLater(() -> refreshTime(s)));
         player.addVisualizerListener(bars -> Platform.runLater(() -> waveformBar.updateAudioBands(bars)));
-        player.addRoomChangeListener(r -> Platform.runLater(this::refreshAll));
+        player.addRoomChangeListener(r -> Platform.runLater(() -> {
+            lastSyncedVersion = -1;
+            refreshAll();
+            checkRoomSyncFromDatabase();
+        }));
         player.addRoomUpdateListener(() -> Platform.runLater(this::refreshAll));
     }
 
@@ -480,6 +508,207 @@ public class MusicRoomView extends VBox {
         refreshPlayState();
         refreshUpNextList();
         refreshListeners();
+    }
+
+    // =========================================================================
+    // 7. REALTIME DATABASE ROOM SYNCHRONIZATION
+    // =========================================================================
+    public void startRoomSync() {
+        stopRoomSync();
+        checkRoomSyncFromDatabase();
+        syncTimeline = new Timeline(new KeyFrame(Duration.millis(1000), e -> checkRoomSyncFromDatabase()));
+        syncTimeline.setCycleCount(Animation.INDEFINITE);
+        syncTimeline.play();
+    }
+
+    public void stopRoomSync() {
+        if (syncTimeline != null) {
+            syncTimeline.stop();
+            syncTimeline = null;
+        }
+    }
+
+    private void checkRoomSyncFromDatabase() {
+        if (isSyncing) return;
+        MusicPresenceRepository repo = player.getMusicPresenceRepository();
+        MusicRoom room = player.getCurrentRoom();
+        if (repo == null || room == null) return;
+        String roomId = room.getId();
+
+        isSyncing = true;
+        Thread.ofVirtual().start(() -> {
+            try {
+                // 1. Sync Room Playlist
+                List<MusicPresenceRepository.RoomPlaylistItem> dbPlaylist = repo.getRoomPlaylist(roomId);
+                if (dbPlaylist != null && !dbPlaylist.isEmpty()) {
+                    Platform.runLater(() -> syncLocalPlaylist(dbPlaylist));
+                }
+
+                // 2. Sync Room Playback State (Track, Play/Pause, Seek)
+                MusicPresenceRepository.RoomSyncState state = repo.getRoomSyncState(roomId);
+                if (state != null) {
+                    Platform.runLater(() -> applyRoomSyncState(state));
+                }
+            } catch (Exception ignored) {
+            } finally {
+                isSyncing = false;
+            }
+        });
+    }
+
+    private void syncLocalPlaylist(List<MusicPresenceRepository.RoomPlaylistItem> dbPlaylist) {
+        MusicRoom room = player.getCurrentRoom();
+        if (room == null) return;
+        List<MusicTrack> currentList = room.getPlaylist();
+        boolean changed = false;
+
+        for (MusicPresenceRepository.RoomPlaylistItem item : dbPlaylist) {
+            boolean exists = currentList.stream().anyMatch(t -> t.id().equals(item.trackId()));
+            if (!exists) {
+                MusicTrack newTrk = new MusicTrack(
+                    item.trackId(),
+                    item.title(),
+                    item.artist(),
+                    "YouTube Audio",
+                    item.durationSeconds(),
+                    "YOUTUBE",
+                    "linear-gradient(to bottom right, #f43f5e, #fb7185)",
+                    "YouTube Audio",
+                    null, null, null,
+                    item.thumbnailUrl(),
+                    item.audioPath()
+                );
+                currentList.add(newTrk);
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            player.saveUserPlaylist();
+            refreshUpNextList();
+        }
+    }
+
+    private void applyRoomSyncState(MusicPresenceRepository.RoomSyncState state) {
+        if (state == null) return;
+        MusicRoom room = player.getCurrentRoom();
+        if (room == null || !room.getId().equals(state.roomId())) return;
+
+        // If updated by ourselves, we already have our state
+        if (state.lastUpdatedBy() != null && state.lastUpdatedBy().equalsIgnoreCase(currentUser.username())) {
+            lastSyncedVersion = state.version();
+            return;
+        }
+
+        if (state.version() <= lastSyncedVersion) {
+            // Check for position drift during playback
+            if (state.isPlaying() && player.isPlaying()) {
+                long elapsed = (System.currentTimeMillis() / 1000) - state.updatedAtEpoch();
+                double expectedPos = state.positionSeconds() + Math.max(0, elapsed);
+                if (Math.abs(expectedPos - player.getCurrentPositionSeconds()) > 4.0) {
+                    player.applyRemoteSeek(expectedPos);
+                }
+            }
+            return;
+        }
+
+        lastSyncedVersion = state.version();
+        MusicTrack cur = player.getCurrentTrack();
+
+        // 1. Did the track change?
+        if (state.currentTrackId() != null && !state.currentTrackId().isBlank()
+                && (cur == null || !cur.id().equals(state.currentTrackId()))) {
+
+            MusicTrack found = null;
+            for (MusicTrack t : room.getPlaylist()) {
+                if (t.id().equals(state.currentTrackId())) {
+                    found = t;
+                    break;
+                }
+            }
+
+            boolean hasAudio = false;
+            if (found != null && found.widgetSrc() != null) {
+                File f = new File(found.widgetSrc());
+                if (f.exists() && f.isFile()) hasAudio = true;
+            }
+            if (!hasAudio && state.currentTrackId().startsWith("yt-")) {
+                String vId = state.currentTrackId().substring(3);
+                File audioDir = new File(System.getProperty("user.dir"), ".cache/audio");
+                File[] matches = audioDir.listFiles((dir, name) -> name.startsWith(vId + "."));
+                if (matches != null && matches.length > 0) hasAudio = true;
+            }
+
+            long elapsed = (System.currentTimeMillis() / 1000) - state.updatedAtEpoch();
+            double targetPos = state.positionSeconds() + (state.isPlaying() ? Math.max(0, elapsed) : 0);
+
+            if (hasAudio) {
+                player.applyRemoteTrack(state.currentTrackId(), state.isPlaying(), targetPos);
+                refreshCurrentTrack();
+            } else {
+                String dlQuery = (state.currentTrackQuery() != null && !state.currentTrackQuery().isBlank())
+                    ? state.currentTrackQuery()
+                    : (state.currentTrackTitle() + " " + state.currentTrackArtist());
+
+                Thread.ofVirtual().start(() -> {
+                    YoutubeAudioService.DownloadedTrack dt = YoutubeAudioService.downloadAudio(dlQuery);
+                    if (dt != null) {
+                        Platform.runLater(() -> {
+                            MusicTrack downloadedTrk = new MusicTrack(
+                                "yt-" + dt.videoId(),
+                                dt.title(),
+                                dt.artist(),
+                                "YouTube Audio",
+                                dt.durationSeconds(),
+                                "YOUTUBE",
+                                "linear-gradient(to bottom right, #f43f5e, #fb7185)",
+                                "YouTube Audio",
+                                null, null, null,
+                                dt.thumbnailUrl(),
+                                dt.audioFile().getAbsolutePath()
+                            );
+                            boolean replaced = false;
+                            for (int i = 0; i < room.getPlaylist().size(); i++) {
+                                if (room.getPlaylist().get(i).id().equals(state.currentTrackId())
+                                        || room.getPlaylist().get(i).id().equals("yt-" + dt.videoId())) {
+                                    room.getPlaylist().set(i, downloadedTrk);
+                                    replaced = true;
+                                    break;
+                                }
+                            }
+                            if (!replaced) {
+                                room.getPlaylist().add(downloadedTrk);
+                            }
+                            player.saveUserPlaylist();
+                            refreshUpNextList();
+                            player.applyRemoteTrack(downloadedTrk.id(), state.isPlaying(), targetPos);
+                            refreshCurrentTrack();
+                        });
+                    }
+                });
+            }
+            return;
+        }
+
+        // 2. Did Play / Pause state change?
+        if (state.isPlaying() != player.isPlaying()) {
+            if (state.isPlaying()) {
+                long elapsed = (System.currentTimeMillis() / 1000) - state.updatedAtEpoch();
+                double targetPos = state.positionSeconds() + Math.max(0, elapsed);
+                player.applyRemotePlay(targetPos);
+            } else {
+                player.applyRemotePause();
+            }
+            refreshPlayState();
+            return;
+        }
+
+        // 3. Did seek position change significantly?
+        long elapsed = (System.currentTimeMillis() / 1000) - state.updatedAtEpoch();
+        double expectedPos = state.positionSeconds() + (state.isPlaying() ? Math.max(0, elapsed) : 0);
+        if (Math.abs(expectedPos - player.getCurrentPositionSeconds()) > 4.0) {
+            player.applyRemoteSeek(expectedPos);
+        }
     }
 
     private void refreshRoomInfo() {

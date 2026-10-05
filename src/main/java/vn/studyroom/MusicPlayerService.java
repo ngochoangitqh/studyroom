@@ -83,6 +83,135 @@ public final class MusicPlayerService {
         return youtubeBridge;
     }
 
+    private MusicPresenceRepository musicPresenceRepository;
+    private volatile boolean isApplyingRemoteSync = false;
+
+    public void setMusicPresenceRepository(MusicPresenceRepository repo) {
+        this.musicPresenceRepository = repo;
+    }
+
+    public MusicPresenceRepository getMusicPresenceRepository() {
+        return musicPresenceRepository;
+    }
+
+    public void setCurrentUsername(String username) {
+        if (username != null && !username.isBlank()) {
+            this.currentUsername = username;
+        }
+    }
+
+    public String getCurrentUsername() {
+        return currentUsername;
+    }
+
+    public void setApplyingRemoteSync(boolean val) {
+        this.isApplyingRemoteSync = val;
+    }
+
+    public boolean isApplyingRemoteSync() {
+        return isApplyingRemoteSync;
+    }
+
+    public void syncRoomStateToDatabase() {
+        if (isApplyingRemoteSync || musicPresenceRepository == null || currentRoom == null) return;
+        MusicTrack t = getCurrentTrack();
+        String query = "";
+        if (currentYoutubeTrack != null && t != null && t.id().equals("yt-" + currentYoutubeTrack.videoId())) {
+            query = currentYoutubeTrack.originalUrl();
+        } else if (t != null && t.widgetSrc() != null) {
+            query = t.widgetSrc();
+        }
+        final String finalQuery = query;
+        final MusicTrack finalT = t;
+        final boolean finalPlaying = isPlaying;
+        final double finalPos = currentPositionSeconds;
+        final String rId = currentRoom.getId();
+        final String rName = currentRoom.getName();
+        final String uName = currentUsername;
+
+        Thread.ofVirtual().start(() -> {
+            musicPresenceRepository.updateRoomSyncState(
+                rId, rName, finalT, finalPlaying, finalPos, uName, finalQuery
+            );
+        });
+    }
+
+    public void applyRemotePlay(double positionSec) {
+        isApplyingRemoteSync = true;
+        try {
+            if (activeMediaPlayer != null && positionSec >= 0) {
+                Platform.runLater(() -> activeMediaPlayer.seek(javafx.util.Duration.seconds(positionSec)));
+            }
+            this.currentPositionSeconds = Math.max(0, positionSec);
+            if (!isPlaying) {
+                this.isPlaying = true;
+                if (activeMediaPlayer != null) {
+                    Platform.runLater(() -> activeMediaPlayer.play());
+                } else {
+                    syncTrackPlayback();
+                }
+                notifyPlayStateChanged();
+            }
+        } finally {
+            isApplyingRemoteSync = false;
+        }
+    }
+
+    public void applyRemotePause() {
+        isApplyingRemoteSync = true;
+        try {
+            if (isPlaying) {
+                this.isPlaying = false;
+                if (activeMediaPlayer != null) {
+                    Platform.runLater(() -> activeMediaPlayer.pause());
+                }
+                notifyPlayStateChanged();
+            }
+        } finally {
+            isApplyingRemoteSync = false;
+        }
+    }
+
+    public void applyRemoteSeek(double positionSec) {
+        isApplyingRemoteSync = true;
+        try {
+            this.currentPositionSeconds = Math.max(0, positionSec);
+            if (activeMediaPlayer != null) {
+                Platform.runLater(() -> activeMediaPlayer.seek(javafx.util.Duration.seconds(positionSec)));
+            }
+            notifyTimeUpdated();
+        } finally {
+            isApplyingRemoteSync = false;
+        }
+    }
+
+    public void applyRemoteTrack(String trackId, boolean targetPlaying, double positionSec) {
+        if (currentRoom == null) return;
+        int targetIdx = -1;
+        for (int i = 0; i < currentRoom.getPlaylist().size(); i++) {
+            if (currentRoom.getPlaylist().get(i).id().equals(trackId)) {
+                targetIdx = i;
+                break;
+            }
+        }
+        if (targetIdx != -1) {
+            isApplyingRemoteSync = true;
+            try {
+                this.currentTrackIndex = targetIdx;
+                this.currentPositionSeconds = Math.max(0, positionSec);
+                this.isPlaying = targetPlaying;
+                notifyTrackChanged();
+                syncTrackPlayback();
+                if (targetPlaying && activeMediaPlayer != null && positionSec > 0) {
+                    Platform.runLater(() -> activeMediaPlayer.seek(javafx.util.Duration.seconds(positionSec)));
+                }
+                notifyPlayStateChanged();
+            } finally {
+                isApplyingRemoteSync = false;
+            }
+        }
+    }
+
     /**
      * Load and add a YouTube URL or search query to the playlist.
      * Downloads real audio file via YoutubeAudioService, saves to persistent user playlist,
@@ -114,6 +243,19 @@ public final class MusicPlayerService {
             currentRoom.getPlaylist().add(ytTrack);
             saveUserPlaylist();
 
+            currentYoutubeTrack = new YoutubePlayerBridge.YoutubeTrackInfo(
+                dt.title(), dt.videoId(), null, input
+            );
+
+            if (musicPresenceRepository != null) {
+                final String rId = currentRoom.getId();
+                final String uName = currentUsername;
+                final String inQuery = input;
+                Thread.ofVirtual().start(() -> {
+                    musicPresenceRepository.addTrackToRoomPlaylist(rId, ytTrack, uName, inQuery);
+                });
+            }
+
             if (needPlay) {
                 currentTrackIndex = currentRoom.getPlaylist().size() - 1;
                 currentPositionSeconds = 0.0;
@@ -121,14 +263,11 @@ public final class MusicPlayerService {
                 syncTrackPlayback();
                 notifyTrackChanged();
                 notifyPlayStateChanged();
+                syncRoomStateToDatabase();
             } else {
                 notifyTrackChanged();
             }
             notifyRoomUpdated();
-
-            currentYoutubeTrack = new YoutubePlayerBridge.YoutubeTrackInfo(
-                dt.title(), dt.videoId(), null, input
-            );
             return currentYoutubeTrack;
         }
         return null;
@@ -136,6 +275,12 @@ public final class MusicPlayerService {
 
     public void removeTrack(int index) {
         if (currentRoom == null || index < 0 || index >= currentRoom.getPlaylist().size()) return;
+        MusicTrack removedTrk = currentRoom.getPlaylist().get(index);
+        if (musicPresenceRepository != null) {
+            final String rId = currentRoom.getId();
+            final String trkId = removedTrk.id();
+            Thread.ofVirtual().start(() -> musicPresenceRepository.removeTrackFromRoomPlaylist(rId, trkId));
+        }
         boolean removingActive = (index == currentTrackIndex);
         currentRoom.getPlaylist().remove(index);
         saveUserPlaylist();
@@ -176,6 +321,10 @@ public final class MusicPlayerService {
 
     public void clearUserPlaylist() {
         if (currentRoom == null) return;
+        if (musicPresenceRepository != null) {
+            final String rId = currentRoom.getId();
+            Thread.ofVirtual().start(() -> musicPresenceRepository.clearRoomPlaylist(rId));
+        }
         currentRoom.getPlaylist().clear();
         currentTrackIndex = 0;
         currentPositionSeconds = 0.0;
@@ -522,6 +671,7 @@ public final class MusicPlayerService {
                 if (isPlaying) {
                     syncTrackPlayback();
                 }
+                syncInitialRoomFromDatabase(roomId);
                 return;
             }
         }
@@ -537,6 +687,39 @@ public final class MusicPlayerService {
         switchRoom(roomId, name);
     }
 
+    private void syncInitialRoomFromDatabase(String roomId) {
+        if (musicPresenceRepository == null) return;
+        Thread.ofVirtual().start(() -> {
+            try {
+                var dbPlaylist = musicPresenceRepository.getRoomPlaylist(roomId);
+                var state = musicPresenceRepository.getRoomSyncState(roomId);
+                Platform.runLater(() -> {
+                    if (currentRoom != null && currentRoom.getId().equals(roomId)) {
+                        if (dbPlaylist != null && !dbPlaylist.isEmpty()) {
+                            for (var item : dbPlaylist) {
+                                boolean exists = currentRoom.getPlaylist().stream().anyMatch(t -> t.id().equals(item.trackId()));
+                                if (!exists) {
+                                    currentRoom.getPlaylist().add(new MusicTrack(
+                                        item.trackId(), item.title(), item.artist(), "YouTube Audio",
+                                        item.durationSeconds(), "YOUTUBE",
+                                        "linear-gradient(to bottom right, #f43f5e, #fb7185)",
+                                        "YouTube Audio", null, null, null, item.thumbnailUrl(), item.audioPath()
+                                    ));
+                                }
+                            }
+                            notifyRoomUpdated();
+                        }
+                        if (state != null && state.currentTrackId() != null && !state.currentTrackId().isBlank()) {
+                            long elapsed = (System.currentTimeMillis() / 1000) - state.updatedAtEpoch();
+                            double targetPos = state.positionSeconds() + (state.isPlaying() ? Math.max(0, elapsed) : 0);
+                            applyRemoteTrack(state.currentTrackId(), state.isPlaying(), targetPos);
+                        }
+                    }
+                });
+            } catch (Exception ignored) { }
+        });
+    }
+
     public void play() {
         if (!isPlaying) {
             isPlaying = true;
@@ -547,6 +730,7 @@ public final class MusicPlayerService {
             }
             notifyPlayStateChanged();
             broadcastSync("PLAY", currentTrackIndex + ":" + (int)currentPositionSeconds);
+            syncRoomStateToDatabase();
         }
     }
 
@@ -558,6 +742,7 @@ public final class MusicPlayerService {
             }
             notifyPlayStateChanged();
             broadcastSync("PAUSE", currentTrackIndex + ":" + (int)currentPositionSeconds);
+            syncRoomStateToDatabase();
         }
     }
 
@@ -666,6 +851,7 @@ public final class MusicPlayerService {
         syncTrackPlayback();
         notifyPlayStateChanged();
         broadcastSync("NEXT", String.valueOf(currentTrackIndex));
+        syncRoomStateToDatabase();
     }
 
     public void prev() {
@@ -680,6 +866,7 @@ public final class MusicPlayerService {
         if (isPlaying) {
             syncTrackPlayback();
             broadcastSync("PREV", String.valueOf(currentTrackIndex));
+            syncRoomStateToDatabase();
         }
     }
 
@@ -694,6 +881,7 @@ public final class MusicPlayerService {
             notifyPlayStateChanged();
         }
         broadcastSync("PLAY", currentTrackIndex + ":0");
+        syncRoomStateToDatabase();
     }
 
     public void seek(double progressRatio) {
@@ -707,6 +895,7 @@ public final class MusicPlayerService {
         notifyTimeUpdated();
         if (isPlaying) {
             broadcastSync("SEEK", String.valueOf((int)targetSec));
+            syncRoomStateToDatabase();
         }
     }
 
