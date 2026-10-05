@@ -78,7 +78,23 @@ public final class VoiceEngine implements AutoCloseable {
                 speakerLine.open(FORMAT, FRAME_SIZE * 10);
                 speakerLine.start();
             }
-        } catch (Exception ignored) { }
+        } catch (Exception e) {
+            // Fallback: try finding any playback mixer that supports SourceDataLine
+            for (Mixer.Info mi : AudioSystem.getMixerInfo()) {
+                if (mi.getDescription().contains("Playback") || mi.getName().contains("Speakers") || mi.getName().contains("Loa")) {
+                    try {
+                        Mixer m = AudioSystem.getMixer(mi);
+                        DataLine.Info speakerInfo = new DataLine.Info(SourceDataLine.class, FORMAT);
+                        if (m.isLineSupported(speakerInfo)) {
+                            speakerLine = (SourceDataLine) m.getLine(speakerInfo);
+                            speakerLine.open(FORMAT, FRAME_SIZE * 10);
+                            speakerLine.start();
+                            break;
+                        }
+                    } catch (Exception ignored) { }
+                }
+            }
+        }
 
         // Initialize microphone with 200ms buffer
         try {

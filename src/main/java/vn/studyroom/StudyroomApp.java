@@ -24,6 +24,7 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -48,6 +49,7 @@ import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
 import javax.sound.sampled.DataLine;
+import javax.sound.sampled.Mixer;
 
 
 public final class StudyroomApp extends Application {
@@ -1519,7 +1521,8 @@ public final class StudyroomApp extends Application {
 
 
     // ─── Ringtone helper ────────────────────────────────────────────────────────
-    private Clip generateRingtone() {
+    private List<Clip> startRingtone() {
+        List<Clip> clips = new ArrayList<>();
         try {
             float sampleRate = 44100f;
             int durationMs = 3200; // 3.2 sec of audio data
@@ -1531,7 +1534,6 @@ public final class StudyroomApp extends Application {
             double ringOn1Start = 0, ringOn1End = 0.4;
             double ringOff1Start = 0.4, ringOff1End = 0.6;
             double ringOn2Start = 0.6, ringOn2End = 1.0;
-            double silence = 1.0;
 
             for (int i = 0; i < numSamples; i++) {
                 double t = i / sampleRate;
@@ -1562,13 +1564,38 @@ public final class StudyroomApp extends Application {
 
             AudioFormat fmt = new AudioFormat(sampleRate, 16, 1, true, false);
             DataLine.Info info = new DataLine.Info(Clip.class, fmt);
-            Clip clip = (Clip) AudioSystem.getLine(info);
-            clip.open(fmt, buf, 0, buf.length);
-            clip.loop(Clip.LOOP_CONTINUOUSLY);
-            return clip;
-        } catch (Exception e) {
-            return null; // silently ignore if audio not available
-        }
+
+            // Ring across all active playback devices:
+            // This guarantees ringtone plays on built-in speakers even if headphones are unplugged
+            // (or if headphones are plugged in but left on the desk)!
+            for (Mixer.Info mi : AudioSystem.getMixerInfo()) {
+                String desc = mi.getDescription();
+                String name = mi.getName();
+                if (desc.contains("Playback") || name.contains("Primary") || name.contains("Speakers")
+                        || name.contains("Headphones") || name.contains("Loa") || name.contains("Tai nghe")) {
+                    try {
+                        Mixer m = AudioSystem.getMixer(mi);
+                        if (m.isLineSupported(info)) {
+                            Clip clip = (Clip) m.getLine(info);
+                            clip.open(fmt, buf, 0, buf.length);
+                            clip.loop(Clip.LOOP_CONTINUOUSLY);
+                            clips.add(clip);
+                        }
+                    } catch (Exception ignored) { }
+                }
+            }
+
+            // Fallback to default system line if no specific mixer opened
+            if (clips.isEmpty()) {
+                try {
+                    Clip defaultClip = (Clip) AudioSystem.getLine(info);
+                    defaultClip.open(fmt, buf, 0, buf.length);
+                    defaultClip.loop(Clip.LOOP_CONTINUOUSLY);
+                    clips.add(defaultClip);
+                } catch (Exception ignored) { }
+            }
+        } catch (Exception ignored) { }
+        return clips;
     }
 
     private final Set<String> promptedCallIds = Collections.synchronizedSet(new HashSet<>());
@@ -1578,12 +1605,16 @@ public final class StudyroomApp extends Application {
         if (!promptedCallIds.add(incoming.callId())) {
             return;
         }
-        // ── 1. Start ringtone ────────────────────────────────────────────────
-        Clip ringtone = generateRingtone();
+        // ── 1. Start ringtone across all playback devices ───────────────────────
+        List<Clip> ringClips = startRingtone();
         Runnable stopRing = () -> {
-            if (ringtone != null) {
-                try { ringtone.stop(); ringtone.close(); } catch (Exception ignored) {}
+            for (Clip c : ringClips) {
+                try {
+                    c.stop();
+                    c.close();
+                } catch (Exception ignored) { }
             }
+            ringClips.clear();
         };
 
         // ── 2. Build Incoming Call Stage (floating window) ───────────────────
