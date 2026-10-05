@@ -118,8 +118,10 @@ public final class MusicPlayerService {
         String query = "";
         if (currentYoutubeTrack != null && t != null && t.id().equals("yt-" + currentYoutubeTrack.videoId())) {
             query = currentYoutubeTrack.originalUrl();
-        } else if (t != null && t.widgetSrc() != null) {
-            query = t.widgetSrc();
+        } else if (t != null && t.id() != null && t.id().startsWith("yt-")) {
+            query = "https://www.youtube.com/watch?v=" + t.id().substring(3);
+        } else if (t != null) {
+            query = t.title() + " " + t.artist();
         }
         final String finalQuery = query;
         final MusicTrack finalT = t;
@@ -133,6 +135,18 @@ public final class MusicPlayerService {
             musicPresenceRepository.updateRoomSyncState(
                 rId, rName, finalT, finalPlaying, finalPos, uName, finalQuery
             );
+        });
+    }
+
+    public void syncRoomPlaylistToDatabase() {
+        if (isApplyingRemoteSync || musicPresenceRepository == null || currentRoom == null) return;
+        final String rId = currentRoom.getId();
+        final String uName = currentUsername;
+        final List<MusicTrack> tracks = new ArrayList<>(currentRoom.getPlaylist());
+        if (tracks.isEmpty()) return;
+
+        Thread.ofVirtual().start(() -> {
+            musicPresenceRepository.syncAllTracksToRoomPlaylist(rId, tracks, uName);
         });
     }
 
@@ -773,6 +787,41 @@ public final class MusicPlayerService {
             }
         }
 
+        if (audioFile == null && t.id() != null && t.id().startsWith("yt-")) {
+            final String vId = t.id().substring(3);
+            final String dlQuery = "https://www.youtube.com/watch?v=" + vId;
+            final MusicTrack currentT = t;
+            System.out.println("[MusicPlayer] Auto-downloading track for playback: " + dlQuery + " (" + currentT.title() + ")");
+            Thread.ofVirtual().start(() -> {
+                YoutubeAudioService.DownloadedTrack dt = YoutubeAudioService.downloadAudio(dlQuery);
+                if (dt != null) {
+                    Platform.runLater(() -> {
+                        MusicTrack updatedT = new MusicTrack(
+                            currentT.id(), currentT.title(), currentT.artist(),
+                            currentT.album(), dt.durationSeconds(), currentT.soundType(),
+                            currentT.coverGradient(), currentT.genre(), null, null, null,
+                            dt.thumbnailUrl() != null ? dt.thumbnailUrl() : currentT.thumbnailUrl(),
+                            dt.audioFile().getAbsolutePath()
+                        );
+                        if (currentRoom != null) {
+                            for (int i = 0; i < currentRoom.getPlaylist().size(); i++) {
+                                if (currentRoom.getPlaylist().get(i).id().equals(currentT.id())) {
+                                    currentRoom.getPlaylist().set(i, updatedT);
+                                    break;
+                                }
+                            }
+                            saveUserPlaylist();
+                            notifyRoomUpdated();
+                        }
+                        if (getCurrentTrack() != null && getCurrentTrack().id().equals(currentT.id())) {
+                            syncTrackPlayback();
+                        }
+                    });
+                }
+            });
+            return;
+        }
+
         if (audioFile != null) {
             final File finalAudio = audioFile;
             System.out.println("[MusicPlayer] Playing audio file: " + finalAudio.getAbsolutePath() + " (" + t.title() + ")");
@@ -811,6 +860,9 @@ public final class MusicPlayerService {
                     });
 
                     if (isPlaying) {
+                        if (currentPositionSeconds > 0) {
+                            activeMediaPlayer.seek(javafx.util.Duration.seconds(currentPositionSeconds));
+                        }
                         activeMediaPlayer.play();
                     }
                 } catch (Exception ex) {

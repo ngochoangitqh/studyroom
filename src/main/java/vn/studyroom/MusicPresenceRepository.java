@@ -106,6 +106,10 @@ public final class MusicPresenceRepository {
                 version = music_room_state.version + 1,
                 updated_at = CURRENT_TIMESTAMP
         """;
+        String resolvedQuery = youtubeQuery;
+        if ((resolvedQuery == null || resolvedQuery.isBlank() || resolvedQuery.contains(":\\")) && track != null && track.id() != null && track.id().startsWith("yt-")) {
+            resolvedQuery = "https://www.youtube.com/watch?v=" + track.id().substring(3);
+        }
         try (Connection c = database.connect(); PreparedStatement q = c.prepareStatement(sql)) {
             q.setString(1, roomId);
             q.setString(2, roomName != null ? roomName : "Phòng học");
@@ -115,7 +119,7 @@ public final class MusicPresenceRepository {
             q.setInt(6, track != null ? track.durationSeconds() : 0);
             q.setString(7, track != null ? track.thumbnailUrl() : "");
             q.setString(8, track != null ? track.widgetSrc() : "");
-            q.setString(9, youtubeQuery != null ? youtubeQuery : "");
+            q.setString(9, resolvedQuery != null ? resolvedQuery : "");
             q.setBoolean(10, isPlaying);
             q.setDouble(11, positionSeconds);
             q.setString(12, updatedBy != null ? updatedBy : "anonymous");
@@ -125,25 +129,48 @@ public final class MusicPresenceRepository {
 
     public void addTrackToRoomPlaylist(String roomId, MusicTrack track, String addedBy, String youtubeQuery) {
         if (roomId == null || track == null) return;
+        String resolvedQuery = youtubeQuery;
+        if ((resolvedQuery == null || resolvedQuery.isBlank() || resolvedQuery.contains(":\\")) && track.id() != null && track.id().startsWith("yt-")) {
+            resolvedQuery = "https://www.youtube.com/watch?v=" + track.id().substring(3);
+        }
+        String checkSql = "SELECT 1 FROM music_room_playlist WHERE room_id = ? AND track_id = ?";
         String sql = """
             INSERT INTO music_room_playlist (
                 room_id, track_id, title, artist, duration_seconds,
                 thumbnail_url, audio_path, youtube_query, added_by, sort_order, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM music_room_playlist WHERE room_id = ?), CURRENT_TIMESTAMP)
         """;
-        try (Connection c = database.connect(); PreparedStatement q = c.prepareStatement(sql)) {
-            q.setString(1, roomId);
-            q.setString(2, track.id());
-            q.setString(3, track.title());
-            q.setString(4, track.artist());
-            q.setInt(5, track.durationSeconds());
-            q.setString(6, track.thumbnailUrl() != null ? track.thumbnailUrl() : "");
-            q.setString(7, track.widgetSrc() != null ? track.widgetSrc() : "");
-            q.setString(8, youtubeQuery != null ? youtubeQuery : "");
-            q.setString(9, addedBy != null ? addedBy : "anonymous");
-            q.setString(10, roomId);
-            q.executeUpdate();
+        try (Connection c = database.connect()) {
+            try (PreparedStatement check = c.prepareStatement(checkSql)) {
+                check.setString(1, roomId);
+                check.setString(2, track.id());
+                ResultSet rs = check.executeQuery();
+                if (rs.next()) return; // Already exists
+            }
+            try (PreparedStatement q = c.prepareStatement(sql)) {
+                q.setString(1, roomId);
+                q.setString(2, track.id());
+                q.setString(3, track.title());
+                q.setString(4, track.artist());
+                q.setInt(5, track.durationSeconds());
+                q.setString(6, track.thumbnailUrl() != null ? track.thumbnailUrl() : "");
+                q.setString(7, track.widgetSrc() != null ? track.widgetSrc() : "");
+                q.setString(8, resolvedQuery != null ? resolvedQuery : "");
+                q.setString(9, addedBy != null ? addedBy : "anonymous");
+                q.setString(10, roomId);
+                q.executeUpdate();
+            }
         } catch (SQLException ignored) { }
+    }
+
+    public void syncAllTracksToRoomPlaylist(String roomId, List<MusicTrack> tracks, String addedBy) {
+        if (roomId == null || tracks == null || tracks.isEmpty()) return;
+        for (MusicTrack t : tracks) {
+            String q = (t.id() != null && t.id().startsWith("yt-"))
+                ? "https://www.youtube.com/watch?v=" + t.id().substring(3)
+                : (t.title() + " " + t.artist());
+            addTrackToRoomPlaylist(roomId, t, addedBy, q);
+        }
     }
 
     public List<RoomPlaylistItem> getRoomPlaylist(String roomId) {

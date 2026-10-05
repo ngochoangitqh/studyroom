@@ -3439,6 +3439,8 @@ public final class StudyroomApp extends Application {
         content.getStyleClass().setAll("workspace");
         content.setPadding(Insets.EMPTY);
         content.setSpacing(0);
+        musicPlayer.setMusicPresenceRepository(musicPresenceRepo);
+        musicPlayer.setCurrentUsername(user.username());
         MusicTrack curTrk = musicPlayer.getCurrentTrack();
         String curTitle = curTrk != null ? curTrk.title() : "";
         musicPresenceRepo.updatePresence(user.username(), user.displayName(), musicPlayer.getCurrentRoom().getId(), musicPlayer.getCurrentRoom().getName(), curTitle);
