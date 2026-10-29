@@ -9,6 +9,18 @@ public final class ChatRepository {
     private final Database database;
     public ChatRepository(Database database) { this.database = database; }
     public void save(String roomId, String sender, String body) {
+        if (body != null && body.startsWith("[CALL:")) {
+            // Deduplicate: If a call summary was already saved for this room within the last 15 seconds, ignore duplicate
+            try (Connection c = database.connect();
+                 PreparedStatement check = c.prepareStatement(
+                     "SELECT 1 FROM chat_message WHERE room_id = ? AND body LIKE '[CALL:%' AND created_at >= CURRENT_TIMESTAMP - INTERVAL '15 seconds' LIMIT 1")) {
+                check.setString(1, roomId);
+                ResultSet rs = check.executeQuery();
+                if (rs.next()) {
+                    return; // Already recorded
+                }
+            } catch (SQLException ignored) {}
+        }
         try (Connection c = database.connect(); PreparedStatement q = c.prepareStatement("INSERT INTO chat_message(room_id, sender, body) VALUES (?, ?, ?)")) {
             q.setString(1, roomId); q.setString(2, sender); q.setString(3, body); q.executeUpdate();
         } catch (SQLException e) { throw new IllegalStateException("Không thể lưu tin nhắn.", e); }

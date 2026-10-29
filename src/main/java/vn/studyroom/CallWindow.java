@@ -53,6 +53,7 @@ public final class CallWindow {
     private Timer pollTimer;
     private volatile long callStartTimeMs = 0;
     private final AtomicBoolean callAnswered   = new AtomicBoolean(false); // true once ≥2 people in call
+    private final AtomicBoolean isCallClosed   = new AtomicBoolean(false);
 
     private boolean isCameraOn = false;
     private boolean autoStartCam = false;
@@ -197,6 +198,7 @@ public final class CallWindow {
 
     // ── Sync ─────────────────────────────────────────────────────────────────────
     private void syncState() {
+        if (isCallClosed.get()) return;
         List<CallRepository.Participant> list = callRepo.getParticipants(session.callId());
 
         // Call was ended by the other side
@@ -297,6 +299,7 @@ public final class CallWindow {
 
     // ── Close ─────────────────────────────────────────────────────────────────────
     public void closeCall() {
+        if (isCallClosed.getAndSet(true)) return;
         if (pollTimer != null) { pollTimer.cancel(); pollTimer = null; }
         if (isCameraOn) {
             CameraEngine.getInstance().stop();

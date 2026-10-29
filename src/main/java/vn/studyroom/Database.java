@@ -66,6 +66,14 @@ public final class Database {
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
                 )
                 """);
+
+            try {
+                statement.executeUpdate(
+                    "DELETE FROM chat_message a USING chat_message b " +
+                    "WHERE a.id > b.id AND a.room_id = b.room_id AND a.body LIKE '[CALL:%' AND b.body LIKE '[CALL:%' " +
+                    "AND ABS(EXTRACT(EPOCH FROM (a.created_at - b.created_at))) < 30"
+                );
+            } catch (Exception ignored) {}
             statement.executeUpdate("ALTER TABLE app_user ADD COLUMN IF NOT EXISTS avatar BYTEA");
             statement.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS study_group (

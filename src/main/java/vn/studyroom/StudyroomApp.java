@@ -184,6 +184,9 @@ public final class StudyroomApp extends Application {
                         promptIncomingCall(s);
                     }
                 } else if (selectedRoomId != null) {
+                    if (packet.body() != null && packet.body().startsWith("[CALL:")) {
+                        return;
+                    }
                     addMessage(selectedRoomId, packet.sender(), packet.body(), false, true);
                 }
             }));
