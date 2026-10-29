@@ -45,6 +45,7 @@ public class MusicRoomView extends VBox {
     private final Runnable onInviteFriends;
     private final Runnable onLeaveRoom;
     private final Consumer<String> toastCallback;
+    private final AuthStore authStore;
 
     // Header controls
     private Label roomTitleLbl;
@@ -81,15 +82,20 @@ public class MusicRoomView extends VBox {
     private static final String DEFAULT_COVER = "https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=600&q=80";
 
     public MusicRoomView(MusicPlayerService player, User currentUser, Runnable onInviteFriends, Consumer<String> toastCallback) {
-        this(player, currentUser, onInviteFriends, null, toastCallback);
+        this(player, currentUser, onInviteFriends, null, toastCallback, null);
     }
 
     public MusicRoomView(MusicPlayerService player, User currentUser, Runnable onInviteFriends, Runnable onLeaveRoom, Consumer<String> toastCallback) {
+        this(player, currentUser, onInviteFriends, onLeaveRoom, toastCallback, null);
+    }
+
+    public MusicRoomView(MusicPlayerService player, User currentUser, Runnable onInviteFriends, Runnable onLeaveRoom, Consumer<String> toastCallback, AuthStore authStore) {
         this.player = player;
         this.currentUser = currentUser;
         this.onInviteFriends = onInviteFriends;
         this.onLeaveRoom = onLeaveRoom;
         this.toastCallback = toastCallback;
+        this.authStore = authStore;
 
         setStyle("-fx-background-color: #fafafa;");
         setSpacing(0);
@@ -1139,15 +1145,34 @@ public class MusicRoomView extends VBox {
         VBox box = new VBox(4);
         box.setAlignment(Pos.CENTER);
 
+        double radius = 19;
         StackPane avatarCircle = new StackPane();
-        Circle c = new Circle(19);
-        c.setFill(Color.web("#e0e7ff"));
-        c.setStroke(Color.web("#c7d2fe"));
-        c.setStrokeWidth(1.5);
+        avatarCircle.setMinSize(radius * 2, radius * 2);
+        avatarCircle.setMaxSize(radius * 2, radius * 2);
+        avatarCircle.setAlignment(Pos.CENTER);
 
-        Label initial = new Label(name.substring(0, 1).toUpperCase());
-        initial.setStyle("-fx-font-size: 14px; -fx-font-weight: 800; -fx-text-fill: #4338ca;");
-        avatarCircle.getChildren().addAll(c, initial);
+        Image avatarImg = (authStore != null) ? authStore.getUserAvatarImage(name) : null;
+        if (avatarImg != null && !avatarImg.isError() && avatarImg.getWidth() > 0) {
+            ImageView iv = new ImageView(avatarImg);
+            iv.setSmooth(true);
+            iv.setPreserveRatio(true);
+            double w = avatarImg.getWidth();
+            double h = avatarImg.getHeight();
+            double scale = Math.max(radius * 2 / w, radius * 2 / h);
+            iv.setFitWidth(w * scale);
+            iv.setFitHeight(h * scale);
+            Circle clip = new Circle(radius, radius, radius);
+            avatarCircle.setClip(clip);
+            avatarCircle.getChildren().add(iv);
+        } else {
+            Circle c = new Circle(radius);
+            c.setFill(Color.web("#e0e7ff"));
+            c.setStroke(Color.web("#c7d2fe"));
+            c.setStrokeWidth(1.5);
+            Label initial = new Label(name.substring(0, 1).toUpperCase());
+            initial.setStyle("-fx-font-size: 14px; -fx-font-weight: 800; -fx-text-fill: #4338ca;");
+            avatarCircle.getChildren().addAll(c, initial);
+        }
 
         Label nameLbl = new Label(name);
         nameLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: 600; -fx-text-fill: #0f172a;");

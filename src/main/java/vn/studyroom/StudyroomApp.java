@@ -3442,7 +3442,7 @@ public final class StudyroomApp extends Application {
         MusicRoomView roomView = new MusicRoomView(musicPlayer, user, this::showInviteMusicFriendsDialog, () -> {
             musicPresenceRepo.clearPresence(user.username());
             showMusicLounge();
-        }, this::toast);
+        }, this::toast, auth);
         content.getChildren().add(roomView);
     }
 
