@@ -64,7 +64,6 @@ public final class StudyroomApp extends Application {
     private final BorderPane shell = new BorderPane();
     private final VBox content = new VBox();
     private final MusicPlayerService musicPlayer = MusicPlayerService.getInstance();
-    private BottomMusicBar bottomMusicBar;
     private User user;
     private TcpChatNode node;
     private VBox messages;
@@ -116,8 +115,7 @@ public final class StudyroomApp extends Application {
         musicPlayer.setMusicPresenceRepository(musicPresenceRepo);
         musicPlayer.setCurrentUsername(user.username());
         musicPlayer.setPeerNode(node, user.displayName());
-        bottomMusicBar = new BottomMusicBar(musicPlayer, this::showMusic);
-        shell.getStyleClass().add("app-shell"); shell.setLeft(sidebar()); shell.setCenter(content); shell.setBottom(bottomMusicBar); showChat();
+        shell.getStyleClass().add("app-shell"); shell.setLeft(sidebar()); shell.setCenter(content); showChat();
         scene.setRoot(shell);
         courseRepo.seedInitialDemoIfEmpty(user.username());
         try {
@@ -261,7 +259,6 @@ public final class StudyroomApp extends Application {
                 }
             }
         }
-        if (shell != null && shell.getBottom() == null && bottomMusicBar != null) shell.setBottom(bottomMusicBar);
         refreshSidebar();
         selectedRoomId = roomId;
         content.getChildren().clear(); content.getStyleClass().setAll("chat-workspace"); content.setPadding(Insets.EMPTY); content.setSpacing(0);
@@ -1965,7 +1962,6 @@ public final class StudyroomApp extends Application {
     private String directRoomId(String first, String second) { String pair = first.compareTo(second) < 0 ? first + "\u0000" + second : second + "\u0000" + first; return "direct:" + UUID.nameUUIDFromBytes(pair.getBytes(StandardCharsets.UTF_8)); }
 
     private void showRoom() {
-        if (shell != null && shell.getBottom() == null && bottomMusicBar != null) shell.setBottom(bottomMusicBar);
         if (activeCourseId != null) {
             showCourseWorkspace(activeCourseId);
         } else {
@@ -3434,7 +3430,6 @@ public final class StudyroomApp extends Application {
     }
     private void showMusic() {
         refreshSidebar();
-        if (shell != null) shell.setBottom(null);
         content.getChildren().clear();
         content.getStyleClass().setAll("workspace");
         content.setPadding(Insets.EMPTY);
@@ -3453,9 +3448,6 @@ public final class StudyroomApp extends Application {
 
     private void showMusicLounge() {
         refreshSidebar();
-        if (shell != null && shell.getBottom() == null && bottomMusicBar != null) {
-            shell.setBottom(bottomMusicBar);
-        }
         base("Sảnh phòng nghe nhạc · StudyTogether 🎧", "Không gian âm nhạc trực tuyến, cùng nghe & tập trung học tập");
 
         HBox topBar = new HBox(12);
@@ -3686,7 +3678,6 @@ public final class StudyroomApp extends Application {
     }
 
     private void showProfile() {
-        if (shell != null && shell.getBottom() == null && bottomMusicBar != null) shell.setBottom(bottomMusicBar);
         base("Hồ sơ cá nhân", "Quản lý thông tin và hình ảnh đại diện của bạn");
         refreshSidebar();
         VBox card = new VBox(16);
