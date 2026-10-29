@@ -107,7 +107,7 @@ public final class StudyroomApp extends Application {
 
     private Pane loginView(String prefillUsername) {
         StackPane root = new StackPane(); root.getStyleClass().add("auth-root");
-        VBox card = new VBox(16); card.getStyleClass().add("auth-card"); card.setMaxWidth(440);
+        VBox card = new VBox(18); card.getStyleClass().add("auth-card"); card.setMaxWidth(420);
         Label brand = new Label("◉  Studyroom"); brand.getStyleClass().add("brand");
         Label title = new Label("Học cùng nhau,\nkhông học một mình."); title.getStyleClass().add("auth-title");
         Label subtitle = new Label("Tạo một không gian chung để nhắn tin, họp, trình chiếu và nghe nhạc cùng nhóm."); subtitle.getStyleClass().add("muted"); subtitle.setWrapText(true);
@@ -121,12 +121,9 @@ public final class StudyroomApp extends Application {
         Button submit = new Button("Đăng nhập"); submit.getStyleClass().addAll("button", "button-primary"); submit.setMaxWidth(Double.MAX_VALUE);
         Hyperlink switchMode = new Hyperlink("Chưa có tài khoản? Đăng ký");
         final boolean[] registering = {false};
-        VBox quickAccountsBox = buildQuickAccountsBox(username, password, registering);
         Runnable refresh = () -> {
             name.setManaged(registering[0]);
             name.setVisible(registering[0]);
-            quickAccountsBox.setManaged(!registering[0]);
-            quickAccountsBox.setVisible(!registering[0]);
             submit.setText(registering[0] ? "Tạo tài khoản" : "Đăng nhập");
             switchMode.setText(registering[0] ? "Đã có tài khoản? Đăng nhập" : "Chưa có tài khoản? Đăng ký");
             error.setText("");
@@ -141,55 +138,10 @@ public final class StudyroomApp extends Application {
                 ex.printStackTrace();
             }
         });
-        card.getChildren().addAll(brand, title, subtitle, quickAccountsBox, name, username, password, error, submit, switchMode);
+        card.getChildren().addAll(brand, title, subtitle, name, username, password, error, submit, switchMode);
         refresh.run();
         root.getChildren().add(card);
         return root;
-    }
-
-    private VBox buildQuickAccountsBox(TextField usernameF, PasswordField passF, boolean[] registering) {
-        VBox box = new VBox(6);
-        List<UserDataServer.UserProfile> users = UserDataServer.getInstance().getAllUsers();
-        if (users.isEmpty()) {
-            UserDataServer.getInstance().syncFromDatabase(database);
-            users = UserDataServer.getInstance().getAllUsers();
-        }
-        if (users.isEmpty()) {
-            box.setManaged(false);
-            box.setVisible(false);
-            return box;
-        }
-
-        Label promptLbl = new Label("💡 Chọn nhanh tài khoản có sẵn:");
-        promptLbl.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #4f46e5; -fx-font-weight: 700;");
-
-        HBox chipsRow = new HBox(6);
-        chipsRow.setAlignment(Pos.CENTER_LEFT);
-
-        for (var p : users) {
-            Button chip = new Button(p.displayName() + " (@" + p.username() + ")");
-            chip.setStyle("-fx-background-color: #f8fafc; -fx-text-fill: #334155; -fx-border-color: #cbd5e1; -fx-border-radius: 14; -fx-background-radius: 14; -fx-font-size: 11px; -fx-font-weight: 600; -fx-padding: 4 9; -fx-cursor: hand;");
-            chip.setOnAction(e -> {
-                usernameF.setText(p.username());
-                if (p.password() != null && !p.password().isBlank() && !p.password().equals("******")) {
-                    passF.setText(p.password());
-                } else {
-                    passF.clear();
-                }
-                passF.requestFocus();
-            });
-            chipsRow.getChildren().add(chip);
-        }
-
-        ScrollPane scroll = new ScrollPane(chipsRow);
-        scroll.setFitToHeight(true);
-        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        scroll.setStyle("-fx-background-color: transparent; -fx-border-color: transparent; -fx-padding: 0;");
-        scroll.setMaxHeight(36);
-
-        box.getChildren().addAll(promptLbl, scroll);
-        return box;
     }
     private TextField field(String label, String prompt) { TextField f = new TextField(); f.setPromptText(label + " · " + prompt); f.getStyleClass().add("input"); return f; }
 
