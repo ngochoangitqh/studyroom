@@ -14,8 +14,7 @@ if (-not $env:STUDYROOM_DB_URL) {
 }
 $env:STUDYROOM_DB_USER = if ($env:STUDYROOM_DB_USER) { $env:STUDYROOM_DB_USER } else { 'postgres' }
 if (-not $env:STUDYROOM_DB_PASSWORD) {
-    $securePassword = Read-Host 'PostgreSQL password for user postgres' -AsSecureString
-    $env:STUDYROOM_DB_PASSWORD = [System.Net.NetworkCredential]::new('', $securePassword).Password
+    $env:STUDYROOM_DB_PASSWORD = 'ngochoang'
 }
 $peerParam = if ($env:STUDYROOM_PEER) { "-Dstudyroom.peer=$env:STUDYROOM_PEER" } else { "" }
 & $maven "-Dmaven.repo.local=$projectRoot\.tools\m2" $peerParam javafx:run
