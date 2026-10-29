@@ -133,13 +133,55 @@ public final class GeminiAiService {
         Thread.ofVirtual().start(() -> {
             try {
                 List<ChatMessage> history = getHistory(username);
-                // Take up to the last 8 messages for context
-                int start = Math.max(0, history.size() - 8);
-                List<ChatMessage> context = history.subList(start, history.size());
+                List<ChatMessage> context = new ArrayList<>();
 
-                String response = requestGemini("gemini-3.5-flash", context);
-                if (response == null || response.isBlank()) {
-                    response = requestGemini("gemini-3.5-flash-lite", context);
+                // Add up to last 6 history messages
+                if (history != null && !history.isEmpty()) {
+                    int start = Math.max(0, history.size() - 6);
+                    context.addAll(history.subList(start, history.size()));
+                }
+
+                // Ensure current user message is always present at the end
+                if (context.isEmpty() || !userMessage.equals(context.get(context.size() - 1).content())) {
+                    context.add(new ChatMessage(UUID.randomUUID().toString(), username != null ? username : "user", "user", userMessage, new Timestamp(System.currentTimeMillis())));
+                }
+
+                // Build alternating valid roles (user -> model -> user)
+                List<ChatMessage> cleanMessages = new ArrayList<>();
+                String lastRole = null;
+                for (ChatMessage m : context) {
+                    String role = "model".equalsIgnoreCase(m.role()) ? "model" : "user";
+                    if (lastRole == null) {
+                        if ("user".equals(role)) {
+                            cleanMessages.add(m);
+                            lastRole = role;
+                        }
+                    } else if (!lastRole.equals(role)) {
+                        cleanMessages.add(m);
+                        lastRole = role;
+                    }
+                }
+
+                // Final validation: must not be empty and must end with user role
+                if (cleanMessages.isEmpty() || !"user".equals(cleanMessages.get(cleanMessages.size() - 1).role())) {
+                    cleanMessages.add(new ChatMessage(UUID.randomUUID().toString(), username != null ? username : "user", "user", userMessage, new Timestamp(System.currentTimeMillis())));
+                }
+
+                String[] candidateModels = {
+                    "gemini-flash-lite-latest",
+                    "gemini-3.5-flash",
+                    "gemini-3.5-flash-lite",
+                    "gemini-3-flash-preview"
+                };
+
+                String response = null;
+                for (String model : candidateModels) {
+                    try {
+                        response = requestGemini(model, cleanMessages);
+                        if (response != null && !response.isBlank()) {
+                            break;
+                        }
+                    } catch (Exception ignored) {}
                 }
 
                 if (response != null && !response.isBlank()) {
@@ -147,7 +189,7 @@ public final class GeminiAiService {
                     final String finalResponse = response;
                     Platform.runLater(() -> onSuccess.accept(finalResponse));
                 } else {
-                    Platform.runLater(() -> onError.accept("Không nhận được phản hồi từ AI. Vui lòng thử lại."));
+                    Platform.runLater(() -> onError.accept("Không nhận được phản hồi từ AI. Vui lòng kiểm tra lại kết nối và thử lại."));
                 }
             } catch (Exception ex) {
                 Platform.runLater(() -> onError.accept("Lỗi kết nối Gemini AI: " + ex.getMessage()));
@@ -182,7 +224,7 @@ public final class GeminiAiService {
             HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
                 .header("Content-Type", "application/json")
-                .timeout(Duration.ofSeconds(25))
+                .timeout(Duration.ofSeconds(12))
                 .POST(HttpRequest.BodyPublishers.ofString(json.toString(), StandardCharsets.UTF_8))
                 .build();
 

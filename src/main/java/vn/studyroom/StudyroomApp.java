@@ -4616,6 +4616,7 @@ public final class StudyroomApp extends Application {
 
         // Input Area
         VBox inputContainer = new VBox(8);
+        inputContainer.setMinHeight(Region.USE_PREF_SIZE);
         inputContainer.setStyle("-fx-background-color: white; -fx-background-radius: 16; -fx-padding: 12 16; -fx-border-color: #e2e8f0; -fx-border-radius: 16; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 6, 0, 0, 1);");
 
         TextArea promptInput = new TextArea();
@@ -4641,24 +4642,36 @@ public final class StudyroomApp extends Application {
 
         // Send action
         Runnable doSend = () -> {
-            String textMsg = promptInput.getText().trim();
-            if (textMsg.isBlank()) return;
+            try {
+                String textMsg = promptInput.getText().trim();
+                if (textMsg.isBlank()) return;
 
-            promptInput.clear();
-            appendUserBubble.accept(textMsg);
+                promptInput.clear();
+                appendUserBubble.accept(textMsg);
 
-            setLoading.accept(true);
-            sendBtn.setDisable(true);
+                setLoading.accept(true);
+                sendBtn.setDisable(true);
+                promptInput.setDisable(true);
 
-            aiService.askGeminiAsync(user.username(), textMsg, reply -> {
+                aiService.askGeminiAsync(user.username(), textMsg, reply -> {
+                    setLoading.accept(false);
+                    sendBtn.setDisable(false);
+                    promptInput.setDisable(false);
+                    appendBotBubble.accept(reply);
+                    promptInput.requestFocus();
+                }, err -> {
+                    setLoading.accept(false);
+                    sendBtn.setDisable(false);
+                    promptInput.setDisable(false);
+                    appendBotBubble.accept("⚠️ " + err);
+                    promptInput.requestFocus();
+                });
+            } catch (Exception ex) {
                 setLoading.accept(false);
                 sendBtn.setDisable(false);
-                appendBotBubble.accept(reply);
-            }, err -> {
-                setLoading.accept(false);
-                sendBtn.setDisable(false);
-                appendBotBubble.accept("⚠️ " + err);
-            });
+                promptInput.setDisable(false);
+                toast("Không thể gửi tin nhắn: " + ex.getMessage());
+            }
         };
 
         sendBtn.setOnAction(e -> doSend.run());
