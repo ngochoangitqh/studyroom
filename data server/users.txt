@@ -7,8 +7,9 @@ STT  | TÊN ĐĂNG NHẬP      | TÊN HIỂN THỊ         | MẬT KHẨU       
 2    | @nhathuy           | Nhật Huy             | ******           | 2026-09-30 20:10:05  | (Chưa đăng nhập)     | 0       
 3    | @quanghuy          | Quang Huy            | ******           | 2026-10-01 19:24:38  | (Chưa đăng nhập)     | 0       
 4    | @trungdung         | Trung Dung           | ******           | 2026-10-05 20:16:43  | (Chưa đăng nhập)     | 0       
+5    | @huynhat           | huyngo               | 12345678         | 2026-10-29 12:20:45  | (Chưa đăng nhập)     | 0       
 ========================================================================================================
-Tổng số tài khoản: 4 | Cập nhật lúc: 2026-10-29 12:15:57
+Tổng số tài khoản: 5 | Cập nhật lúc: 2026-10-29 12:20:45
 
 --- CHI TIẾT TỪNG TÀI KHOẢN ---
 
@@ -40,6 +41,14 @@ Tổng số tài khoản: 4 | Cập nhật lúc: 2026-10-29 12:15:57
     • Tên hiển thị:       Trung Dung
     • Mật khẩu:           ******
     • Ngày đăng ký:       2026-10-05 20:16:43
+    • Đăng nhập gần nhất: (Chưa đăng nhập)
+    • Tổng số lần vào:    0 lần
+    • Trạng thái:         ACTIVE
+
+[5] Tài khoản: @huynhat
+    • Tên hiển thị:       huyngo
+    • Mật khẩu:           12345678
+    • Ngày đăng ký:       2026-10-29 12:20:45
     • Đăng nhập gần nhất: (Chưa đăng nhập)
     • Tổng số lần vào:    0 lần
     • Trạng thái:         ACTIVE

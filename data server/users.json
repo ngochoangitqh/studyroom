@@ -34,5 +34,14 @@
     "lastLoginAt": "",
     "loginCount": 0,
     "status": "ACTIVE"
+  },
+  {
+    "username": "huynhat",
+    "displayName": "huyngo",
+    "password": "12345678",
+    "registeredAt": "2026-10-29 12:20:45",
+    "lastLoginAt": "",
+    "loginCount": 0,
+    "status": "ACTIVE"
   }
 ]

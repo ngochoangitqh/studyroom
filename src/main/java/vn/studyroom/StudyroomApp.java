@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -101,21 +102,94 @@ public final class StudyroomApp extends Application {
     }
 
     private Pane loginView() {
+        return loginView(null);
+    }
+
+    private Pane loginView(String prefillUsername) {
         StackPane root = new StackPane(); root.getStyleClass().add("auth-root");
-        VBox card = new VBox(18); card.getStyleClass().add("auth-card"); card.setMaxWidth(420);
+        VBox card = new VBox(16); card.getStyleClass().add("auth-card"); card.setMaxWidth(440);
         Label brand = new Label("◉  Studyroom"); brand.getStyleClass().add("brand");
         Label title = new Label("Học cùng nhau,\nkhông học một mình."); title.getStyleClass().add("auth-title");
         Label subtitle = new Label("Tạo một không gian chung để nhắn tin, họp, trình chiếu và nghe nhạc cùng nhóm."); subtitle.getStyleClass().add("muted"); subtitle.setWrapText(true);
-        TextField name = field("Tên hiển thị", "Nguyễn Minh"); TextField username = field("Tên đăng nhập", "minh.study");
+        TextField name = field("Tên hiển thị", "Nguyễn Minh");
+        TextField username = field("Tên đăng nhập", "minh.study");
+        if (prefillUsername != null && !prefillUsername.isBlank()) {
+            username.setText(prefillUsername);
+        }
         PasswordField password = new PasswordField(); password.setPromptText("Mật khẩu"); password.getStyleClass().add("input");
         Label error = new Label(); error.getStyleClass().add("form-error"); error.setWrapText(true);
         Button submit = new Button("Đăng nhập"); submit.getStyleClass().addAll("button", "button-primary"); submit.setMaxWidth(Double.MAX_VALUE);
         Hyperlink switchMode = new Hyperlink("Chưa có tài khoản? Đăng ký");
         final boolean[] registering = {false};
-        Runnable refresh = () -> { name.setManaged(registering[0]); name.setVisible(registering[0]); submit.setText(registering[0] ? "Tạo tài khoản" : "Đăng nhập"); switchMode.setText(registering[0] ? "Đã có tài khoản? Đăng nhập" : "Chưa có tài khoản? Đăng ký"); error.setText(""); };
+        VBox quickAccountsBox = buildQuickAccountsBox(username, password, registering);
+        Runnable refresh = () -> {
+            name.setManaged(registering[0]);
+            name.setVisible(registering[0]);
+            quickAccountsBox.setManaged(!registering[0]);
+            quickAccountsBox.setVisible(!registering[0]);
+            submit.setText(registering[0] ? "Tạo tài khoản" : "Đăng nhập");
+            switchMode.setText(registering[0] ? "Đã có tài khoản? Đăng nhập" : "Chưa có tài khoản? Đăng ký");
+            error.setText("");
+        };
         switchMode.setOnAction(e -> { registering[0] = !registering[0]; refresh.run(); });
-        submit.setOnAction(e -> { try { user = registering[0] ? auth.register(name.getText(), username.getText(), password.getText()) : auth.login(username.getText(), password.getText()); openWorkspace(); } catch (Exception ex) { error.setText(ex.getMessage()); ex.printStackTrace(); } });
-        card.getChildren().addAll(brand, title, subtitle, name, username, password, error, submit, switchMode); refresh.run(); root.getChildren().add(card); return root;
+        submit.setOnAction(e -> {
+            try {
+                user = registering[0] ? auth.register(name.getText(), username.getText(), password.getText()) : auth.login(username.getText(), password.getText());
+                openWorkspace();
+            } catch (Exception ex) {
+                error.setText(ex.getMessage());
+                ex.printStackTrace();
+            }
+        });
+        card.getChildren().addAll(brand, title, subtitle, quickAccountsBox, name, username, password, error, submit, switchMode);
+        refresh.run();
+        root.getChildren().add(card);
+        return root;
+    }
+
+    private VBox buildQuickAccountsBox(TextField usernameF, PasswordField passF, boolean[] registering) {
+        VBox box = new VBox(6);
+        List<UserDataServer.UserProfile> users = UserDataServer.getInstance().getAllUsers();
+        if (users.isEmpty()) {
+            UserDataServer.getInstance().syncFromDatabase(database);
+            users = UserDataServer.getInstance().getAllUsers();
+        }
+        if (users.isEmpty()) {
+            box.setManaged(false);
+            box.setVisible(false);
+            return box;
+        }
+
+        Label promptLbl = new Label("💡 Chọn nhanh tài khoản có sẵn:");
+        promptLbl.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #4f46e5; -fx-font-weight: 700;");
+
+        HBox chipsRow = new HBox(6);
+        chipsRow.setAlignment(Pos.CENTER_LEFT);
+
+        for (var p : users) {
+            Button chip = new Button(p.displayName() + " (@" + p.username() + ")");
+            chip.setStyle("-fx-background-color: #f8fafc; -fx-text-fill: #334155; -fx-border-color: #cbd5e1; -fx-border-radius: 14; -fx-background-radius: 14; -fx-font-size: 11px; -fx-font-weight: 600; -fx-padding: 4 9; -fx-cursor: hand;");
+            chip.setOnAction(e -> {
+                usernameF.setText(p.username());
+                if (p.password() != null && !p.password().isBlank() && !p.password().equals("******")) {
+                    passF.setText(p.password());
+                } else {
+                    passF.clear();
+                }
+                passF.requestFocus();
+            });
+            chipsRow.getChildren().add(chip);
+        }
+
+        ScrollPane scroll = new ScrollPane(chipsRow);
+        scroll.setFitToHeight(true);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scroll.setStyle("-fx-background-color: transparent; -fx-border-color: transparent; -fx-padding: 0;");
+        scroll.setMaxHeight(36);
+
+        box.getChildren().addAll(promptLbl, scroll);
+        return box;
     }
     private TextField field(String label, String prompt) { TextField f = new TextField(); f.setPromptText(label + " · " + prompt); f.getStyleClass().add("input"); return f; }
 
@@ -223,7 +297,26 @@ public final class StudyroomApp extends Application {
         meCopy.getChildren().addAll(meName, meStatus);
         meBox.getChildren().addAll(meAvt, meCopy);
         meBox.setOnMouseClicked(e -> showProfile());
-        bar.getChildren().addAll(logo, spacer(18), chat, room, music, aiAssistant, profile, gap, meBox); return bar;
+
+        HBox meActions = new HBox(6);
+        meActions.setAlignment(Pos.CENTER);
+
+        Button switchBtn = new Button("🔄 Đổi tài khoản");
+        switchBtn.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(switchBtn, Priority.ALWAYS);
+        switchBtn.setStyle("-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-size: 11px; -fx-font-weight: 700; -fx-background-radius: 8; -fx-padding: 6 4; -fx-cursor: hand; -fx-border-color: #e2e8f0; -fx-border-radius: 8;");
+        switchBtn.setOnAction(e -> showSwitchAccountDialog());
+
+        Button logoutBtn = new Button("🚪 Đăng xuất");
+        logoutBtn.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(logoutBtn, Priority.ALWAYS);
+        logoutBtn.setStyle("-fx-background-color: #fee2e2; -fx-text-fill: #dc2626; -fx-font-size: 11px; -fx-font-weight: 700; -fx-background-radius: 8; -fx-padding: 6 4; -fx-cursor: hand; -fx-border-color: #fecaca; -fx-border-radius: 8;");
+        logoutBtn.setOnAction(e -> confirmAndLogout());
+
+        meActions.getChildren().addAll(switchBtn, logoutBtn);
+
+        bar.getChildren().addAll(logo, spacer(18), chat, room, music, aiAssistant, profile, gap, meBox, meActions);
+        return bar;
     }
     private Button nav(String icon, String label, Runnable action) {
         Label iconNode = new Label(icon);
@@ -4808,8 +4901,206 @@ public final class StudyroomApp extends Application {
         Label statusLbl = new Label("🟢  Trạng thái: Đang hoạt động");
         statusLbl.setStyle("-fx-font-size: 13px; -fx-text-fill: #10b981; -fx-font-weight: 600;");
 
-        card.getChildren().addAll(bigAvatar, nameLbl, handleLbl, changeAvatarBtn, new Separator(), statusLbl);
+        HBox accountActions = new HBox(12);
+        accountActions.setAlignment(Pos.CENTER);
+
+        Button switchAccProfileBtn = new Button("🔄  Đổi tài khoản");
+        switchAccProfileBtn.setStyle("-fx-background-color: #4f46e5; -fx-text-fill: white; -fx-font-weight: 700; -fx-font-size: 13px; -fx-background-radius: 20; -fx-padding: 8 20; -fx-cursor: hand;");
+        switchAccProfileBtn.setOnAction(e -> showSwitchAccountDialog());
+
+        Button logoutProfileBtn = new Button("🚪  Đăng xuất");
+        logoutProfileBtn.setStyle("-fx-background-color: #fee2e2; -fx-text-fill: #dc2626; -fx-font-weight: 700; -fx-font-size: 13px; -fx-background-radius: 20; -fx-padding: 8 20; -fx-cursor: hand; -fx-border-color: #fca5a5; -fx-border-radius: 20;");
+        logoutProfileBtn.setOnAction(e -> confirmAndLogout());
+
+        accountActions.getChildren().addAll(switchAccProfileBtn, logoutProfileBtn);
+
+        card.getChildren().addAll(bigAvatar, nameLbl, handleLbl, changeAvatarBtn, new Separator(), statusLbl, new Separator(), accountActions);
         content.getChildren().add(card);
+    }
+
+    private void confirmAndLogout() {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Đăng xuất");
+        alert.setHeaderText("Xác nhận đăng xuất khỏi Studyroom");
+        alert.setContentText("Bạn có chắc chắn muốn đăng xuất khỏi tài khoản @" + (user != null ? user.username() : "") + " không?");
+        if (scene != null && scene.getWindow() != null) alert.initOwner(scene.getWindow());
+
+        alert.showAndWait().ifPresent(res -> {
+            if (res == ButtonType.OK) {
+                performLogout();
+            }
+        });
+    }
+
+    private void performLogoutNoRedirect() {
+        if (user != null) {
+            UserDataServer.getInstance().recordLogout(user.username());
+            musicPresenceRepo.clearPresence(user.username());
+        }
+        musicPlayer.stop();
+        classroomVoice.stop();
+        webcamStream.stop();
+        ScreenShareEngine.getInstance().stop();
+        if (node != null) {
+            try {
+                node.close();
+            } catch (Exception ignored) {}
+            node = null;
+        }
+        if (classroomSyncTimer != null) {
+            classroomSyncTimer.cancel();
+            classroomSyncTimer = null;
+        }
+        if (messageSyncTimer != null) {
+            messageSyncTimer.cancel();
+            messageSyncTimer = null;
+        }
+        isCameraOn = false;
+        isMicOn = false;
+        isLocalSpeaking = false;
+        selectedRoomId = null;
+        currentDirectUsername = null;
+        lastLoadedMessageId = 0;
+        content.getChildren().clear();
+        shell.setLeft(null);
+        shell.setCenter(null);
+    }
+
+    private void performLogout() {
+        String loggedOutUsername = user != null ? user.username() : null;
+        performLogoutNoRedirect();
+        user = null;
+        scene.setRoot(loginView(loggedOutUsername));
+    }
+
+    private void showSwitchAccountDialog() {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Đổi tài khoản");
+        dialog.setHeaderText("Chọn tài khoản để đổi hoặc đăng nhập tài khoản khác");
+        if (scene != null && scene.getWindow() != null) dialog.initOwner(scene.getWindow());
+
+        VBox root = new VBox(12);
+        root.setPrefWidth(440);
+        root.setStyle("-fx-padding: 16;");
+
+        List<UserDataServer.UserProfile> users = UserDataServer.getInstance().getAllUsers();
+        if (users.isEmpty()) {
+            UserDataServer.getInstance().syncFromDatabase(database);
+            users = UserDataServer.getInstance().getAllUsers();
+        }
+
+        VBox listContainer = new VBox(8);
+        for (var uProfile : users) {
+            boolean isCurrent = user != null && user.username().equalsIgnoreCase(uProfile.username());
+            HBox item = new HBox(12);
+            item.setAlignment(Pos.CENTER_LEFT);
+            item.setStyle("-fx-padding: 10 14; -fx-background-color: " + (isCurrent ? "#f0fdf4" : "#ffffff") + "; -fx-border-color: " + (isCurrent ? "#86efac" : "#e2e8f0") + "; -fx-border-radius: 12; -fx-background-radius: 12; -fx-cursor: hand;");
+
+            StackPane avt = userAvatar(uProfile.username(), initials(uProfile.displayName()), "avatar-person", 40);
+            VBox info = new VBox(2);
+            HBox nameRow = new HBox(6);
+            nameRow.setAlignment(Pos.CENTER_LEFT);
+            Label nameLbl = new Label(uProfile.displayName());
+            nameLbl.setStyle("-fx-font-weight: 700; -fx-font-size: 13.5px; -fx-text-fill: #1e293b;");
+            nameRow.getChildren().add(nameLbl);
+
+            if (isCurrent) {
+                Label currBadge = new Label("Đang dùng");
+                currBadge.setStyle("-fx-background-color: #dcfce7; -fx-text-fill: #15803d; -fx-font-size: 10.5px; -fx-font-weight: 700; -fx-padding: 2 6; -fx-background-radius: 8;");
+                nameRow.getChildren().add(currBadge);
+            }
+
+            Label userLbl = new Label("@" + uProfile.username());
+            userLbl.setStyle("-fx-font-size: 12px; -fx-text-fill: #64748b;");
+            info.getChildren().addAll(nameRow, userLbl);
+
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+
+            Button actionBtn = new Button(isCurrent ? "Đang chọn" : "Đăng nhập");
+            actionBtn.setDisable(isCurrent);
+            if (isCurrent) {
+                actionBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #15803d; -fx-font-weight: 700; -fx-font-size: 12px;");
+            } else {
+                actionBtn.setStyle("-fx-background-color: #4f46e5; -fx-text-fill: white; -fx-font-weight: 700; -fx-font-size: 12px; -fx-background-radius: 16; -fx-padding: 5 14; -fx-cursor: hand;");
+            }
+
+            actionBtn.setOnAction(e -> {
+                dialog.close();
+                switchToAccount(uProfile);
+            });
+            item.setOnMouseClicked(e -> {
+                if (!isCurrent) {
+                    dialog.close();
+                    switchToAccount(uProfile);
+                }
+            });
+
+            item.getChildren().addAll(avt, info, spacer, actionBtn);
+            listContainer.getChildren().add(item);
+        }
+
+        ScrollPane scroll = new ScrollPane(listContainer);
+        scroll.setFitToWidth(true);
+        scroll.setMaxHeight(280);
+        scroll.setStyle("-fx-background-color: transparent; -fx-border-color: transparent;");
+
+        Separator sep = new Separator();
+
+        Button newAccountBtn = new Button("➕ Đăng nhập tài khoản khác / Đăng ký mới");
+        newAccountBtn.setStyle("-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-weight: 700; -fx-font-size: 13px; -fx-background-radius: 10; -fx-padding: 9 16; -fx-cursor: hand;");
+        newAccountBtn.setMaxWidth(Double.MAX_VALUE);
+        newAccountBtn.setOnAction(e -> {
+            dialog.close();
+            performLogout();
+        });
+
+        root.getChildren().addAll(scroll, sep, newAccountBtn);
+        dialog.getDialogPane().setContent(root);
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.showAndWait();
+    }
+
+    private void switchToAccount(UserDataServer.UserProfile profile) {
+        Dialog<String> passDialog = new Dialog<>();
+        passDialog.setTitle("Xác thực đổi tài khoản");
+        passDialog.setHeaderText("Đăng nhập vào tài khoản: @" + profile.username() + " (" + profile.displayName() + ")");
+        if (scene != null && scene.getWindow() != null) passDialog.initOwner(scene.getWindow());
+
+        VBox content = new VBox(10);
+        content.setStyle("-fx-padding: 16;");
+        Label lbl = new Label("Nhập mật khẩu cho @" + profile.username() + ":");
+        lbl.setStyle("-fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: #1e293b;");
+        PasswordField passField = new PasswordField();
+        passField.setPromptText("Mật khẩu");
+        passField.setStyle("-fx-padding: 8 12; -fx-font-size: 13px;");
+        if (profile.password() != null && !profile.password().isBlank() && !profile.password().equals("******")) {
+            passField.setText(profile.password());
+        }
+
+        content.getChildren().addAll(lbl, passField);
+        passDialog.getDialogPane().setContent(content);
+
+        ButtonType loginType = new ButtonType("Đăng nhập", ButtonBar.ButtonData.OK_DONE);
+        passDialog.getDialogPane().getButtonTypes().addAll(loginType, ButtonType.CANCEL);
+
+        passDialog.setResultConverter(btn -> {
+            if (btn == loginType) return passField.getText();
+            return null;
+        });
+
+        Optional<String> res = passDialog.showAndWait();
+        if (res.isPresent()) {
+            String enteredPass = res.get();
+            try {
+                User newUser = auth.login(profile.username(), enteredPass);
+                performLogoutNoRedirect();
+                this.user = newUser;
+                openWorkspace();
+            } catch (Exception ex) {
+                showErrorAlert("Đổi tài khoản thất bại", "Mật khẩu không chính xác: " + ex.getMessage());
+            }
+        }
     }
 
     private void showErrorAlert(String titleText, String contentText) {

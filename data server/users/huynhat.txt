@@ -1,0 +1,12 @@
+=====================================================
+        THÔNG TIN TÀI KHOẢN NGƯỜI DÙNG: @huynhat
+=====================================================
+Tên đăng nhập:       @huynhat
+Tên hiển thị:        huyngo
+Mật khẩu:            12345678
+Thời gian đăng ký:   2026-10-29 12:20:45
+Đăng nhập gần nhất:  (Chưa đăng nhập)
+Số lần đăng nhập:    0 lần
+Trạng thái:          ACTIVE
+=====================================================
+File tạo tự động bởi Studyroom Data Server

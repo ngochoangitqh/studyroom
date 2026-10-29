@@ -143,6 +143,17 @@ public final class UserDataServer {
         appendLog("[ĐĂNG NHẬP THẤT BẠI] Tài khoản: @" + key + " | Lý do: " + (reason != null ? reason : "Mật khẩu không khớp") + " | Thời gian: " + currentTime);
     }
 
+    public synchronized void recordLogout(String username) {
+        ensureDirectories();
+        String key = username != null ? username.trim().toLowerCase() : "unknown";
+        String currentTime = now();
+        appendLog("[ĐĂNG XUẤT] Tài khoản: @" + key + " | Thời gian: " + currentTime);
+    }
+
+    public synchronized List<UserProfile> getAllUsers() {
+        return new ArrayList<>(userCache.values());
+    }
+
     public synchronized void syncFromDatabase(Database database) {
         if (database == null) return;
         ensureDirectories();
