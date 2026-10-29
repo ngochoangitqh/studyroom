@@ -2,12 +2,16 @@ package vn.studyroom;
 
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
+
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
-import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
 
 /** Local-first auth backed by H2 with PBKDF2 password hashes. */
 public final class AuthStore {
