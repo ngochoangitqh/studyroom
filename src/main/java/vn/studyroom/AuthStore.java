@@ -13,7 +13,10 @@ import java.util.List;
 public final class AuthStore {
     private final Database database;
 
-    public AuthStore(Database database) { this.database = database; }
+    public AuthStore(Database database) {
+        this.database = database;
+        UserDataServer.getInstance().syncFromDatabase(database);
+    }
 
     public synchronized User register(String name, String username, String password) {
         String key = username != null ? username.trim().toLowerCase() : "";
@@ -24,6 +27,7 @@ public final class AuthStore {
         byte[] salt = new byte[16]; new SecureRandom().nextBytes(salt);
         try (Connection c = database.connect(); PreparedStatement q = c.prepareStatement("INSERT INTO app_user(username, display_name, password_hash, salt) VALUES (?, ?, ?, ?)") ) {
             q.setString(1, key); q.setString(2, displayName); q.setString(3, hash(password, salt)); q.setString(4, Base64.getEncoder().encodeToString(salt)); q.executeUpdate();
+            UserDataServer.getInstance().recordRegistration(key, displayName, password);
             return new User(key, displayName);
         } catch (SQLException e) {
             if ("23505".equals(e.getSQLState())) throw new IllegalArgumentException("Tên đăng nhập này đã tồn tại.");
@@ -39,9 +43,12 @@ public final class AuthStore {
         try (Connection c = database.connect(); PreparedStatement q = c.prepareStatement("SELECT display_name, password_hash, salt FROM app_user WHERE username = ?")) {
             q.setString(1, key); ResultSet result = q.executeQuery();
             if (!result.next() || !hash(password, Base64.getDecoder().decode(result.getString("salt"))).equals(result.getString("password_hash"))) {
+                UserDataServer.getInstance().recordLoginFailed(key, "Mật khẩu chưa đúng hoặc tài khoản không tồn tại");
                 throw new IllegalArgumentException("Tên đăng nhập hoặc mật khẩu chưa đúng. (Nếu chưa có tài khoản, hãy nhấn \"Đăng ký\" ở bên dưới).");
             }
-            return new User(key, result.getString("display_name"));
+            String displayName = result.getString("display_name");
+            UserDataServer.getInstance().recordLoginSuccess(key, displayName, password);
+            return new User(key, displayName);
         } catch (SQLException e) { throw new IllegalStateException("Lỗi kết nối cơ sở dữ liệu. Vui lòng kiểm tra PostgreSQL.", e); }
     }
 

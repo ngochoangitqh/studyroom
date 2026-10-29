@@ -1,0 +1,38 @@
+[
+  {
+    "username": "ngochoang1426",
+    "displayName": "Ngoc Hoang",
+    "password": "******",
+    "registeredAt": "2026-09-30 13:51:10",
+    "lastLoginAt": "",
+    "loginCount": 0,
+    "status": "ACTIVE"
+  },
+  {
+    "username": "nhathuy",
+    "displayName": "Nhật Huy",
+    "password": "******",
+    "registeredAt": "2026-09-30 20:10:05",
+    "lastLoginAt": "",
+    "loginCount": 0,
+    "status": "ACTIVE"
+  },
+  {
+    "username": "quanghuy",
+    "displayName": "Quang Huy",
+    "password": "******",
+    "registeredAt": "2026-10-01 19:24:38",
+    "lastLoginAt": "",
+    "loginCount": 0,
+    "status": "ACTIVE"
+  },
+  {
+    "username": "trungdung",
+    "displayName": "Trung Dung",
+    "password": "******",
+    "registeredAt": "2026-10-05 20:16:43",
+    "lastLoginAt": "",
+    "loginCount": 0,
+    "status": "ACTIVE"
+  }
+]
