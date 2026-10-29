@@ -4605,6 +4605,7 @@ public final class StudyroomApp extends Application {
                     r.run();
                 }
                 pendingScripts.clear();
+                runJs.accept("scrollToBottom(true);");
             }
         });
 

@@ -6,7 +6,10 @@
   <link rel="stylesheet" href="katex.min.css">
   <style>
     * { box-sizing: border-box; }
-    html, body {
+    html {
+      height: 100%;
+    }
+    body {
       margin: 0;
       padding: 0;
       width: 100%;
@@ -22,9 +25,10 @@
     #chat-container {
       display: flex;
       flex-direction: column;
-      gap: 16px;
-      padding: 16px 20px 24px 20px;
-      min-height: 100%;
+      gap: 14px;
+      padding: 16px 20px 20px 20px;
+      box-sizing: border-box;
+      /* Naturally sized to content, no extra empty gap */
     }
     
     /* User Row */
@@ -258,17 +262,23 @@
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
+
+    #bottom-anchor {
+      height: 1px;
+      width: 100%;
+      pointer-events: none;
+    }
   </style>
 </head>
 <body>
   <div id="chat-container">
     <!-- Messages injected dynamically -->
-  </div>
-
-  <div id="loading-row">
-    <div class="bot-avatar">🤖</div>
-    <div class="loading-spinner"></div>
-    <div class="loading-text">StudyBot đang suy nghĩ và giải bài tập...</div>
+    <div id="loading-row">
+      <div class="bot-avatar">🤖</div>
+      <div class="loading-spinner"></div>
+      <div class="loading-text">StudyBot đang suy nghĩ và giải bài tập...</div>
+    </div>
+    <div id="bottom-anchor"></div>
   </div>
 
   <script src="katex.min.js"></script>
@@ -277,6 +287,7 @@
   <script>
     const container = document.getElementById('chat-container');
     const loadingRow = document.getElementById('loading-row');
+    const bottomAnchor = document.getElementById('bottom-anchor');
 
     function renderMarkdownWithMath(content) {
       if (!content) return '';
@@ -337,7 +348,8 @@
 
       row.appendChild(bubble);
       row.appendChild(avt);
-      container.appendChild(row);
+      
+      container.insertBefore(row, loadingRow);
       scrollToBottom();
     }
 
@@ -376,7 +388,8 @@
 
       row.appendChild(avt);
       row.appendChild(bubble);
-      container.appendChild(row);
+      
+      container.insertBefore(row, loadingRow);
       scrollToBottom();
     }
 
@@ -396,7 +409,6 @@
     function setLoading(isLoading) {
       if (isLoading) {
         loadingRow.style.display = 'flex';
-        container.appendChild(loadingRow);
       } else {
         loadingRow.style.display = 'none';
       }
@@ -406,12 +418,20 @@
     function clearMessages() {
       container.innerHTML = '';
       container.appendChild(loadingRow);
+      container.appendChild(bottomAnchor);
     }
 
-    function scrollToBottom() {
-      setTimeout(() => {
-        window.scrollTo(0, document.body.scrollHeight);
-      }, 50);
+    function scrollToBottom(immediate) {
+      requestAnimationFrame(() => {
+        if (bottomAnchor) {
+          bottomAnchor.scrollIntoView({ behavior: immediate ? 'instant' : 'smooth', block: 'end' });
+        } else {
+          window.scrollTo({
+            top: document.body.scrollHeight || document.documentElement.scrollHeight,
+            behavior: immediate ? 'instant' : 'smooth'
+          });
+        }
+      });
     }
   </script>
 </body>
