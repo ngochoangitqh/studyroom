@@ -63,6 +63,7 @@ public final class StudyroomApp extends Application {
     private final CallRepository callRepo = new CallRepository(database);
     private final CourseRepository courseRepo = new CourseRepository(database);
     private final QuizRepository quizRepo = new QuizRepository(database);
+    private final GeminiAiService aiService = new GeminiAiService(database);
     private final MusicPresenceRepository musicPresenceRepo = new MusicPresenceRepository(database);
     private final BorderPane shell = new BorderPane();
     private final VBox content = new VBox();
@@ -204,7 +205,7 @@ public final class StudyroomApp extends Application {
     private VBox sidebar() {
         VBox bar = new VBox(12); bar.getStyleClass().add("sidebar");
         Label logo = new Label("✨  Studyroom"); logo.getStyleClass().add("brand");
-        Button chat = nav("💬", "Trò chuyện", this::showChat); Button room = nav("👥", "Phòng chung", this::showRoom); Button music = nav("🎵", "Nghe nhạc", this::showMusicLounge); Button profile = nav("👤", "Hồ sơ", this::showProfile);
+        Button chat = nav("💬", "Trò chuyện", this::showChat); Button room = nav("👥", "Phòng chung", this::showRoom); Button music = nav("🎵", "Nghe nhạc", this::showMusicLounge); Button aiAssistant = nav("🤖", "Trợ lý AI", this::showAiAssistant); Button profile = nav("👤", "Hồ sơ", this::showProfile);
         Region gap = new Region(); VBox.setVgrow(gap, Priority.ALWAYS);
         HBox meBox = new HBox(10);
         meBox.setAlignment(Pos.CENTER_LEFT);
@@ -218,7 +219,7 @@ public final class StudyroomApp extends Application {
         meCopy.getChildren().addAll(meName, meStatus);
         meBox.getChildren().addAll(meAvt, meCopy);
         meBox.setOnMouseClicked(e -> showProfile());
-        bar.getChildren().addAll(logo, spacer(18), chat, room, music, profile, gap, meBox); return bar;
+        bar.getChildren().addAll(logo, spacer(18), chat, room, music, aiAssistant, profile, gap, meBox); return bar;
     }
     private Button nav(String icon, String label, Runnable action) {
         Label iconNode = new Label(icon);
@@ -4442,6 +4443,311 @@ public final class StudyroomApp extends Application {
     private void refreshSidebar() {
         shell.setLeft(sidebar());
     }
+
+    private void showAiAssistant() {
+        refreshSidebar();
+        content.getChildren().clear();
+        content.getStyleClass().setAll("workspace");
+        content.setPadding(new Insets(18, 26, 16, 26));
+
+        // Top bar
+        HBox topBar = new HBox(12);
+        topBar.setAlignment(Pos.CENTER_LEFT);
+
+        Label title = new Label("🤖 Trợ lý Học tập AI · StudyBot");
+        title.setStyle("-fx-font-size: 20px; -fx-font-weight: 800; -fx-text-fill: -ink;");
+
+        Label badge = new Label("Gemini 3.5 Flash");
+        badge.setStyle("-fx-font-size: 11px; -fx-font-weight: 700; -fx-background-color: #e0e7ff; -fx-text-fill: #4338ca; -fx-padding: 3 10; -fx-background-radius: 12;");
+
+        Region gap = new Region();
+        HBox.setHgrow(gap, Priority.ALWAYS);
+
+        Button apiKeyBtn = new Button("⚙ API Key");
+        apiKeyBtn.getStyleClass().add("button");
+        apiKeyBtn.setStyle("-fx-font-size: 12px; -fx-padding: 6 12;");
+        apiKeyBtn.setOnAction(e -> showAiApiKeyDialog());
+
+        Button clearBtn = new Button("🗑 Xóa lịch sử chat");
+        clearBtn.getStyleClass().add("button");
+        clearBtn.setStyle("-fx-font-size: 12px; -fx-padding: 6 12; -fx-text-fill: #ef4444;");
+
+        topBar.getChildren().addAll(title, badge, gap, apiKeyBtn, clearBtn);
+
+        Label subtitle = new Label("Sẵn sàng giải bài tập, giải thích công thức, chữa đề thi & đồng hành học tập cùng bạn 24/7");
+        subtitle.getStyleClass().add("muted");
+        subtitle.setStyle("-fx-font-size: 13px;");
+
+        // Quick Prompt Suggestions Chips
+        HBox promptChips = new HBox(8);
+        promptChips.setAlignment(Pos.CENTER_LEFT);
+        promptChips.setPadding(new Insets(4, 0, 4, 0));
+
+        String[] samplePrompts = {
+            "📐 Giải bài tập: Tính khối lượng este thu được khi đun 6g CH3COOH với 4.6g C2H5OH",
+            "📝 Tóm tắt lý thuyết trọng tâm chương Este - Lipit Hóa 12",
+            "🇬🇧 Sửa lỗi ngữ pháp và viết đoạn văn Tiếng Anh về sở thích",
+            "🎯 Cho tôi 3 câu hỏi trắc nghiệm Toán giải tích ôn thi THPT"
+        };
+
+        // Messages Box
+        VBox messagesBox = new VBox(14);
+        messagesBox.setPadding(new Insets(10, 8, 16, 8));
+
+        ScrollPane chatScroll = new ScrollPane(messagesBox);
+        chatScroll.setFitToWidth(true);
+        chatScroll.getStyleClass().add("thread-scroll");
+        VBox.setVgrow(chatScroll, Priority.ALWAYS);
+
+        // Helper to add user message bubble
+        java.util.function.Consumer<String> addUserBubble = textMsg -> {
+            HBox row = new HBox(10);
+            row.setAlignment(Pos.TOP_RIGHT);
+            row.setPadding(new Insets(2, 4, 2, 80));
+
+            VBox bubble = new VBox(4);
+            bubble.setStyle("-fx-background-color: #4f46e5; -fx-background-radius: 16 4 16 16; -fx-padding: 12 16; -fx-effect: dropshadow(gaussian, rgba(79,70,229,0.15), 6, 0, 0, 2);");
+
+            Label msgLbl = new Label(textMsg);
+            msgLbl.setStyle("-fx-text-fill: white; -fx-font-size: 13.5px; -fx-line-spacing: 2px;");
+            msgLbl.setWrapText(true);
+            bubble.getChildren().add(msgLbl);
+
+            StackPane avt = userAvatar(user.username(), initials(user.displayName()), "avatar-person", 36);
+            row.getChildren().addAll(bubble, avt);
+            messagesBox.getChildren().add(row);
+        };
+
+        // Helper to add bot message bubble
+        java.util.function.Consumer<String> addBotBubble = replyMsg -> {
+            HBox row = new HBox(12);
+            row.setAlignment(Pos.TOP_LEFT);
+            row.setPadding(new Insets(2, 80, 2, 4));
+
+            Label botIcon = new Label("🤖");
+            botIcon.setStyle("-fx-font-size: 20px; -fx-background-color: #f5f3ff; -fx-padding: 8; -fx-background-radius: 18; -fx-border-color: #ddd6fe; -fx-border-radius: 18;");
+
+            VBox bubble = new VBox(8);
+            bubble.setStyle("-fx-background-color: white; -fx-background-radius: 4 16 16 16; -fx-padding: 14 18; -fx-border-color: #e2e8f0; -fx-border-radius: 4 16 16 16; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.04), 8, 0, 0, 2);");
+            HBox.setHgrow(bubble, Priority.ALWAYS);
+
+            Label sender = new Label("StudyBot · AI Trợ lý");
+            sender.setStyle("-fx-font-size: 11px; -fx-font-weight: 700; -fx-text-fill: #7c3aed;");
+
+            Label contentLbl = new Label(replyMsg);
+            contentLbl.setStyle("-fx-font-size: 13.5px; -fx-text-fill: #1e293b; -fx-line-spacing: 3px;");
+            contentLbl.setWrapText(true);
+
+            HBox botFooter = new HBox();
+            botFooter.setAlignment(Pos.CENTER_RIGHT);
+            Button copyBtn = new Button("📋 Sao chép");
+            copyBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #64748b; -fx-font-size: 11px; -fx-cursor: hand; -fx-padding: 2 6;");
+            copyBtn.setOnAction(ev -> {
+                Clipboard clipboard = Clipboard.getSystemClipboard();
+                ClipboardContent cc = new ClipboardContent();
+                cc.putString(replyMsg);
+                clipboard.setContent(cc);
+                toast("Đã sao chép câu trả lời của AI vào bộ nhớ tạm!");
+            });
+            botFooter.getChildren().add(copyBtn);
+
+            bubble.getChildren().addAll(sender, contentLbl, botFooter);
+            row.getChildren().addAll(botIcon, bubble);
+            messagesBox.getChildren().add(row);
+        };
+
+        // Loading indicator row
+        HBox loadingRow = new HBox(12);
+        loadingRow.setAlignment(Pos.CENTER_LEFT);
+        loadingRow.setPadding(new Insets(4, 20, 4, 10));
+        loadingRow.setVisible(false);
+        loadingRow.setManaged(false);
+
+        Label botLoadIcon = new Label("🤖");
+        botLoadIcon.setStyle("-fx-font-size: 20px; -fx-background-color: #f5f3ff; -fx-padding: 8; -fx-background-radius: 18;");
+        Label loadingLbl = new Label("StudyBot đang suy nghĩ và giải bài tập... ⏳");
+        loadingLbl.setStyle("-fx-font-size: 13px; -fx-font-style: italic; -fx-text-fill: #6366f1; -fx-font-weight: 600;");
+        loadingRow.getChildren().addAll(botLoadIcon, loadingLbl);
+
+        // Load existing history
+        List<GeminiAiService.ChatMessage> history = aiService.getHistory(user.username());
+        if (history.isEmpty()) {
+            addBotBubble.accept("👋 Chào " + user.displayName() + "! Mình là StudyBot - Trợ lý AI học tập thông minh trong Studyroom.\n\nMình có thể hỗ trợ bạn:\n✔ Hướng dẫn giải chi tiết bài tập Toán, Lý, Hóa, Sinh, Anh, Văn...\n✔ Giải thích các định lý, công thức, khái niệm khó\n✔ Tóm tắt kiến thức bài học và tạo câu hỏi tự kiểm tra\n✔ Trả lời mọi thắc mắc học tập của bạn\n\nBạn đang muốn giải bài tập nào hay cần hỗ trợ gì? Hãy gõ câu hỏi bên dưới nhé!");
+        } else {
+            for (var m : history) {
+                if ("user".equalsIgnoreCase(m.role())) {
+                    addUserBubble.accept(m.content());
+                } else {
+                    addBotBubble.accept(m.content());
+                }
+            }
+        }
+        messagesBox.getChildren().add(loadingRow);
+
+        Platform.runLater(() -> chatScroll.setVvalue(1.0));
+
+        // Input Area
+        VBox inputContainer = new VBox(8);
+        inputContainer.setStyle("-fx-background-color: white; -fx-background-radius: 16; -fx-padding: 12 16; -fx-border-color: #e2e8f0; -fx-border-radius: 16; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 6, 0, 0, 1);");
+
+        TextArea promptInput = new TextArea();
+        promptInput.setPromptText("Nhập câu hỏi, đề bài tập hoặc chủ đề cần giải thích... (Enter để gửi, Shift+Enter xuống dòng)");
+        promptInput.setPrefRowCount(2);
+        promptInput.setMaxHeight(90);
+        promptInput.setWrapText(true);
+        promptInput.setStyle("-fx-background-color: transparent; -fx-border-color: transparent; -fx-font-size: 13.5px; -fx-text-fill: #111827;");
+
+        HBox inputBottomRow = new HBox(10);
+        inputBottomRow.setAlignment(Pos.CENTER_RIGHT);
+
+        Label hintLbl = new Label("💡 Nhấn Enter để gửi");
+        hintLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #9ca3af;");
+        Region inputGap = new Region();
+        HBox.setHgrow(inputGap, Priority.ALWAYS);
+
+        Button sendBtn = new Button("➤ Gửi câu hỏi");
+        sendBtn.setStyle("-fx-background-color: #4f46e5; -fx-text-fill: white; -fx-font-weight: 800; -fx-font-size: 13px; -fx-background-radius: 20; -fx-padding: 7 20; -fx-cursor: hand;");
+
+        inputBottomRow.getChildren().addAll(hintLbl, inputGap, sendBtn);
+        inputContainer.getChildren().addAll(promptInput, inputBottomRow);
+
+        // Send action
+        Runnable doSend = () -> {
+            String textMsg = promptInput.getText().trim();
+            if (textMsg.isBlank()) return;
+
+            promptInput.clear();
+            addUserBubble.accept(textMsg);
+
+            // Move loadingRow to the end
+            messagesBox.getChildren().remove(loadingRow);
+            messagesBox.getChildren().add(loadingRow);
+            loadingRow.setVisible(true);
+            loadingRow.setManaged(true);
+            sendBtn.setDisable(true);
+            Platform.runLater(() -> chatScroll.setVvalue(1.0));
+
+            aiService.askGeminiAsync(user.username(), textMsg, reply -> {
+                loadingRow.setVisible(false);
+                loadingRow.setManaged(false);
+                sendBtn.setDisable(false);
+                addBotBubble.accept(reply);
+                Platform.runLater(() -> chatScroll.setVvalue(1.0));
+            }, err -> {
+                loadingRow.setVisible(false);
+                loadingRow.setManaged(false);
+                sendBtn.setDisable(false);
+                addBotBubble.accept("⚠️ " + err);
+                Platform.runLater(() -> chatScroll.setVvalue(1.0));
+            });
+        };
+
+        sendBtn.setOnAction(e -> doSend.run());
+
+        promptInput.setOnKeyPressed(ke -> {
+            if (ke.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                if (!ke.isShiftDown()) {
+                    ke.consume();
+                    doSend.run();
+                }
+            }
+        });
+
+        // Quick prompt buttons
+        for (String sp : samplePrompts) {
+            String shortText = sp.length() > 32 ? sp.substring(0, 32) + "..." : sp;
+            Button chip = new Button(shortText);
+            chip.setStyle("-fx-background-color: #f8fafc; -fx-text-fill: #475569; -fx-font-size: 11.5px; -fx-font-weight: 600; -fx-background-radius: 14; -fx-border-color: #cbd5e1; -fx-border-radius: 14; -fx-padding: 4 10; -fx-cursor: hand;");
+            chip.setTooltip(new Tooltip(sp));
+            chip.setOnAction(e -> {
+                promptInput.setText(sp);
+                promptInput.requestFocus();
+                promptInput.positionCaret(sp.length());
+            });
+            promptChips.getChildren().add(chip);
+        }
+
+        clearBtn.setOnAction(e -> {
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Xóa lịch sử trò chuyện");
+            confirm.setHeaderText("Xóa toàn bộ lịch sử với StudyBot?");
+            confirm.setContentText("Các câu hỏi và câu trả lời trước đó sẽ bị xóa.");
+            confirm.showAndWait().ifPresent(res -> {
+                if (res == ButtonType.OK) {
+                    aiService.clearHistory(user.username());
+                    showAiAssistant();
+                    toast("Đã xóa lịch sử trò chuyện AI.");
+                }
+            });
+        });
+
+        content.getChildren().addAll(topBar, subtitle, promptChips, chatScroll, inputContainer);
+    }
+
+    private void showAiApiKeyDialog() {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Cài đặt API Key Gemini");
+        dialog.setHeaderText(null);
+        dialog.setGraphic(null);
+        dialog.getDialogPane().getStylesheets().addAll(
+            getClass().getResource("/tokens.css").toExternalForm(),
+            getClass().getResource("/studyroom.css").toExternalForm()
+        );
+        dialog.getDialogPane().getStyleClass().add("custom-dialog");
+
+        VBox root = new VBox(12);
+        root.setPadding(new Insets(20, 24, 20, 24));
+        root.setPrefWidth(480);
+
+        Label title = new Label("Cài đặt Google Gemini API Key");
+        title.getStyleClass().add("dialog-title");
+
+        Label desc = new Label("Khóa API dùng để kết nối với Google Gemini nhằm giải bài tập và trả lời thắc mắc.");
+        desc.setStyle("-fx-font-size: 12px; -fx-text-fill: #6b7280;");
+        desc.setWrapText(true);
+
+        TextField keyField = new TextField(aiService.getApiKey());
+        keyField.getStyleClass().add("input");
+
+        HBox btnRow = new HBox(10);
+        btnRow.setAlignment(Pos.CENTER_RIGHT);
+
+        Button resetBtn = new Button("Mặc định");
+        resetBtn.getStyleClass().add("button");
+        resetBtn.setOnAction(e -> keyField.setText(GeminiAiService.DEFAULT_API_KEY));
+
+        Region gap = new Region();
+        HBox.setHgrow(gap, Priority.ALWAYS);
+
+        Button cancelBtn = new Button("Đóng");
+        cancelBtn.getStyleClass().add("button");
+        cancelBtn.setOnAction(e -> dialog.close());
+
+        Button saveBtn = new Button("Lưu khóa API");
+        saveBtn.getStyleClass().addAll("button", "button-primary");
+        saveBtn.setOnAction(e -> {
+            String k = keyField.getText().trim();
+            if (k.isBlank()) {
+                toast("Khóa API không được để trống.");
+                return;
+            }
+            aiService.setApiKey(k);
+            toast("Đã lưu khóa API Gemini thành công!");
+            dialog.close();
+        });
+
+        btnRow.getChildren().addAll(resetBtn, gap, cancelBtn, saveBtn);
+        root.getChildren().addAll(title, desc, keyField, btnRow);
+
+        dialog.getDialogPane().setContent(root);
+        ButtonType ct = new ButtonType("", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().add(ct);
+        Button sysClose = (Button) dialog.getDialogPane().lookupButton(ct);
+        if (sysClose != null) sysClose.setVisible(false);
+
+        dialog.show();
+    }
+
 
     private void showProfile() {
         base("Hồ sơ cá nhân", "Quản lý thông tin và hình ảnh đại diện của bạn");

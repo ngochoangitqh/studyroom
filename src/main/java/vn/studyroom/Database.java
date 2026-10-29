@@ -279,6 +279,16 @@ public final class Database {
                   UNIQUE(quiz_id, username)
                 )
                 """);
+
+            statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS ai_chat_message (
+                  message_id VARCHAR(64) PRIMARY KEY,
+                  username VARCHAR(64) NOT NULL REFERENCES app_user(username),
+                  role VARCHAR(20) NOT NULL,
+                  content TEXT NOT NULL,
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+                )
+                """);
         } catch (SQLException exception) {
             System.err.println("⚠️ Không thể khởi tạo bảng Database PostgreSQL: " + exception.getMessage());
         }
