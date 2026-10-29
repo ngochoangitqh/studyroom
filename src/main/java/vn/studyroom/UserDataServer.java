@@ -14,13 +14,15 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
- * Manages user accounts, credentials, registration & login logs in "data server" directory.
+ * Manages user accounts, credentials, registration & login logs in "data server" directory as .txt files.
  */
 public final class UserDataServer {
     private static final File DATA_SERVER_DIR = new File(System.getProperty("user.dir"), "data server");
     private static final File USERS_DIR = new File(DATA_SERVER_DIR, "users");
+    private static final File USERS_TXT_FILE = new File(DATA_SERVER_DIR, "danh_sach_tai_khoan.txt");
+    private static final File USERS_TXT_ALIAS = new File(DATA_SERVER_DIR, "users.txt");
     private static final File USERS_JSON_FILE = new File(DATA_SERVER_DIR, "users.json");
-    private static final File ACTIVITY_LOG_FILE = new File(DATA_SERVER_DIR, "auth_activity.log");
+    private static final File ACTIVITY_TXT_FILE = new File(DATA_SERVER_DIR, "nhat_ky_dang_nhap.txt");
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private static final UserDataServer INSTANCE = new UserDataServer();
@@ -167,13 +169,13 @@ public final class UserDataServer {
                             "ACTIVE"
                         );
                         userCache.put(key, p);
-                        saveIndividualUserFile(p);
                         changed = true;
                     }
                 }
             }
-            if (changed || !USERS_JSON_FILE.exists()) {
-                saveAll();
+            saveAll();
+            for (UserProfile p : userCache.values()) {
+                saveIndividualUserFile(p);
             }
         } catch (Exception e) {
             System.err.println("UserDataServer syncFromDatabase error: " + e.getMessage());
@@ -181,26 +183,63 @@ public final class UserDataServer {
     }
 
     private synchronized void saveAll() {
+        ensureDirectories();
         try {
-            StringBuilder sb = new StringBuilder();
-            sb.append("[\n");
+            // 1. Build beautiful human-readable TXT file
+            StringBuilder txt = new StringBuilder();
+            txt.append("========================================================================================================\n");
+            txt.append("                                DANH SÁCH TÀI KHOẢN NGƯỜI DÙNG - STUDYROOM\n");
+            txt.append("========================================================================================================\n");
+            txt.append(String.format("%-4s | %-18s | %-20s | %-16s | %-20s | %-20s | %-8s\n",
+                "STT", "TÊN ĐĂNG NHẬP", "TÊN HIỂN THỊ", "MẬT KHẨU", "NGÀY ĐĂNG KÝ", "ĐĂNG NHẬP CUỐI", "SỐ LẦN"));
+            txt.append("--------------------------------------------------------------------------------------------------------\n");
+
+            int stt = 1;
+            for (UserProfile p : userCache.values()) {
+                String lastLogin = p.lastLoginAt().isBlank() ? "(Chưa đăng nhập)" : p.lastLoginAt();
+                txt.append(String.format("%-4d | @%-17s | %-20s | %-16s | %-20s | %-20s | %-8d\n",
+                    stt++, p.username(), p.displayName(), p.password(), p.registeredAt(), lastLogin, p.loginCount()));
+            }
+
+            txt.append("========================================================================================================\n");
+            txt.append("Tổng số tài khoản: ").append(userCache.size()).append(" | Cập nhật lúc: ").append(now()).append("\n\n");
+
+            txt.append("--- CHI TIẾT TỪNG TÀI KHOẢN ---\n");
+            int detailIdx = 1;
+            for (UserProfile p : userCache.values()) {
+                txt.append("\n[").append(detailIdx++).append("] Tài khoản: @").append(p.username()).append("\n");
+                txt.append("    • Tên hiển thị:       ").append(p.displayName()).append("\n");
+                txt.append("    • Mật khẩu:           ").append(p.password()).append("\n");
+                txt.append("    • Ngày đăng ký:       ").append(p.registeredAt()).append("\n");
+                txt.append("    • Đăng nhập gần nhất: ").append(p.lastLoginAt().isBlank() ? "(Chưa đăng nhập)" : p.lastLoginAt()).append("\n");
+                txt.append("    • Tổng số lần vào:    ").append(p.loginCount()).append(" lần\n");
+                txt.append("    • Trạng thái:         ").append(p.status()).append("\n");
+            }
+
+            String txtContent = txt.toString();
+            Files.writeString(USERS_TXT_FILE.toPath(), txtContent, StandardCharsets.UTF_8);
+            Files.writeString(USERS_TXT_ALIAS.toPath(), txtContent, StandardCharsets.UTF_8);
+
+            // 2. Also save JSON as backup machine format
+            StringBuilder json = new StringBuilder();
+            json.append("[\n");
             int idx = 0;
             int total = userCache.size();
             for (UserProfile p : userCache.values()) {
-                sb.append("  {\n");
-                sb.append("    \"username\": \"").append(escapeJson(p.username())).append("\",\n");
-                sb.append("    \"displayName\": \"").append(escapeJson(p.displayName())).append("\",\n");
-                sb.append("    \"password\": \"").append(escapeJson(p.password())).append("\",\n");
-                sb.append("    \"registeredAt\": \"").append(escapeJson(p.registeredAt())).append("\",\n");
-                sb.append("    \"lastLoginAt\": \"").append(escapeJson(p.lastLoginAt())).append("\",\n");
-                sb.append("    \"loginCount\": ").append(p.loginCount()).append(",\n");
-                sb.append("    \"status\": \"").append(escapeJson(p.status())).append("\"\n");
-                sb.append("  }").append(idx < total - 1 ? "," : "").append("\n");
+                json.append("  {\n");
+                json.append("    \"username\": \"").append(escapeJson(p.username())).append("\",\n");
+                json.append("    \"displayName\": \"").append(escapeJson(p.displayName())).append("\",\n");
+                json.append("    \"password\": \"").append(escapeJson(p.password())).append("\",\n");
+                json.append("    \"registeredAt\": \"").append(escapeJson(p.registeredAt())).append("\",\n");
+                json.append("    \"lastLoginAt\": \"").append(escapeJson(p.lastLoginAt())).append("\",\n");
+                json.append("    \"loginCount\": ").append(p.loginCount()).append(",\n");
+                json.append("    \"status\": \"").append(escapeJson(p.status())).append("\"\n");
+                json.append("  }").append(idx < total - 1 ? "," : "").append("\n");
                 idx++;
             }
-            sb.append("]\n");
+            json.append("]\n");
+            Files.writeString(USERS_JSON_FILE.toPath(), json.toString(), StandardCharsets.UTF_8);
 
-            Files.writeString(USERS_JSON_FILE.toPath(), sb.toString(), StandardCharsets.UTF_8);
         } catch (IOException e) {
             System.err.println("UserDataServer saveAll error: " + e.getMessage());
         }
@@ -208,19 +247,29 @@ public final class UserDataServer {
 
     private void saveIndividualUserFile(UserProfile p) {
         try {
-            File userFile = new File(USERS_DIR, p.username() + ".json");
+            // Save as readable TXT file
+            File userTxtFile = new File(USERS_DIR, p.username() + ".txt");
             StringBuilder sb = new StringBuilder();
-            sb.append("{\n");
-            sb.append("  \"username\": \"").append(escapeJson(p.username())).append("\",\n");
-            sb.append("  \"displayName\": \"").append(escapeJson(p.displayName())).append("\",\n");
-            sb.append("  \"password\": \"").append(escapeJson(p.password())).append("\",\n");
-            sb.append("  \"registeredAt\": \"").append(escapeJson(p.registeredAt())).append("\",\n");
-            sb.append("  \"lastLoginAt\": \"").append(escapeJson(p.lastLoginAt())).append("\",\n");
-            sb.append("  \"loginCount\": ").append(p.loginCount()).append(",\n");
-            sb.append("  \"status\": \"").append(escapeJson(p.status())).append("\"\n");
-            sb.append("}\n");
+            sb.append("=====================================================\n");
+            sb.append("        THÔNG TIN TÀI KHOẢN NGƯỜI DÙNG: @").append(p.username()).append("\n");
+            sb.append("=====================================================\n");
+            sb.append("Tên đăng nhập:       @").append(p.username()).append("\n");
+            sb.append("Tên hiển thị:        ").append(p.displayName()).append("\n");
+            sb.append("Mật khẩu:            ").append(p.password()).append("\n");
+            sb.append("Thời gian đăng ký:   ").append(p.registeredAt()).append("\n");
+            sb.append("Đăng nhập gần nhất:  ").append(p.lastLoginAt().isBlank() ? "(Chưa đăng nhập)" : p.lastLoginAt()).append("\n");
+            sb.append("Số lần đăng nhập:    ").append(p.loginCount()).append(" lần\n");
+            sb.append("Trạng thái:          ").append(p.status()).append("\n");
+            sb.append("=====================================================\n");
+            sb.append("File tạo tự động bởi Studyroom Data Server\n");
 
-            Files.writeString(userFile.toPath(), sb.toString(), StandardCharsets.UTF_8);
+            Files.writeString(userTxtFile.toPath(), sb.toString(), StandardCharsets.UTF_8);
+
+            // Clean up old json individual file if exists
+            File oldJson = new File(USERS_DIR, p.username() + ".json");
+            if (oldJson.exists()) {
+                oldJson.delete();
+            }
         } catch (IOException e) {
             System.err.println("UserDataServer saveIndividualUserFile error: " + e.getMessage());
         }
@@ -229,7 +278,7 @@ public final class UserDataServer {
     private void appendLog(String logLine) {
         try {
             String entry = "[" + now() + "] " + logLine + System.lineSeparator();
-            Files.writeString(ACTIVITY_LOG_FILE.toPath(), entry, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            Files.writeString(ACTIVITY_TXT_FILE.toPath(), entry, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         } catch (IOException ignored) {}
     }
 

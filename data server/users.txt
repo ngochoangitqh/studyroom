@@ -1,0 +1,45 @@
+========================================================================================================
+                                DANH SÁCH TÀI KHOẢN NGƯỜI DÙNG - STUDYROOM
+========================================================================================================
+STT  | TÊN ĐĂNG NHẬP      | TÊN HIỂN THỊ         | MẬT KHẨU         | NGÀY ĐĂNG KÝ         | ĐĂNG NHẬP CUỐI       | SỐ LẦN  
+--------------------------------------------------------------------------------------------------------
+1    | @ngochoang1426     | Ngoc Hoang           | ******           | 2026-09-30 13:51:10  | (Chưa đăng nhập)     | 0       
+2    | @nhathuy           | Nhật Huy             | ******           | 2026-09-30 20:10:05  | (Chưa đăng nhập)     | 0       
+3    | @quanghuy          | Quang Huy            | ******           | 2026-10-01 19:24:38  | (Chưa đăng nhập)     | 0       
+4    | @trungdung         | Trung Dung           | ******           | 2026-10-05 20:16:43  | (Chưa đăng nhập)     | 0       
+========================================================================================================
+Tổng số tài khoản: 4 | Cập nhật lúc: 2026-10-29 12:15:57
+
+--- CHI TIẾT TỪNG TÀI KHOẢN ---
+
+[1] Tài khoản: @ngochoang1426
+    • Tên hiển thị:       Ngoc Hoang
+    • Mật khẩu:           ******
+    • Ngày đăng ký:       2026-09-30 13:51:10
+    • Đăng nhập gần nhất: (Chưa đăng nhập)
+    • Tổng số lần vào:    0 lần
+    • Trạng thái:         ACTIVE
+
+[2] Tài khoản: @nhathuy
+    • Tên hiển thị:       Nhật Huy
+    • Mật khẩu:           ******
+    • Ngày đăng ký:       2026-09-30 20:10:05
+    • Đăng nhập gần nhất: (Chưa đăng nhập)
+    • Tổng số lần vào:    0 lần
+    • Trạng thái:         ACTIVE
+
+[3] Tài khoản: @quanghuy
+    • Tên hiển thị:       Quang Huy
+    • Mật khẩu:           ******
+    • Ngày đăng ký:       2026-10-01 19:24:38
+    • Đăng nhập gần nhất: (Chưa đăng nhập)
+    • Tổng số lần vào:    0 lần
+    • Trạng thái:         ACTIVE
+
+[4] Tài khoản: @trungdung
+    • Tên hiển thị:       Trung Dung
+    • Mật khẩu:           ******
+    • Ngày đăng ký:       2026-10-05 20:16:43
+    • Đăng nhập gần nhất: (Chưa đăng nhập)
+    • Tổng số lần vào:    0 lần
+    • Trạng thái:         ACTIVE
