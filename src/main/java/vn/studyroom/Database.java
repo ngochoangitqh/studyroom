@@ -239,6 +239,46 @@ public final class Database {
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
                 )
                 """);
+
+            statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS course_quiz (
+                  quiz_id VARCHAR(64) PRIMARY KEY,
+                  course_id VARCHAR(64) NOT NULL REFERENCES study_course(course_id) ON DELETE CASCADE,
+                  title VARCHAR(255) NOT NULL,
+                  description TEXT,
+                  duration_minutes INT DEFAULT 15,
+                  created_by VARCHAR(64) NOT NULL REFERENCES app_user(username),
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+                )
+                """);
+
+            statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS quiz_question (
+                  question_id VARCHAR(64) PRIMARY KEY,
+                  quiz_id VARCHAR(64) NOT NULL REFERENCES course_quiz(quiz_id) ON DELETE CASCADE,
+                  question_text TEXT NOT NULL,
+                  option_a TEXT NOT NULL,
+                  option_b TEXT NOT NULL,
+                  option_c TEXT NOT NULL,
+                  option_d TEXT NOT NULL,
+                  correct_option VARCHAR(2) NOT NULL,
+                  order_num INT DEFAULT 0
+                )
+                """);
+
+            statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS quiz_submission (
+                  submission_id VARCHAR(64) PRIMARY KEY,
+                  quiz_id VARCHAR(64) NOT NULL REFERENCES course_quiz(quiz_id) ON DELETE CASCADE,
+                  username VARCHAR(64) NOT NULL REFERENCES app_user(username),
+                  score DOUBLE PRECISION NOT NULL,
+                  total_questions INT NOT NULL,
+                  correct_count INT NOT NULL,
+                  answers_json TEXT,
+                  submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                  UNIQUE(quiz_id, username)
+                )
+                """);
         } catch (SQLException exception) {
             System.err.println("⚠️ Không thể khởi tạo bảng Database PostgreSQL: " + exception.getMessage());
         }
