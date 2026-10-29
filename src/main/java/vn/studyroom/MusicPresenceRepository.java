@@ -12,6 +12,7 @@ public final class MusicPresenceRepository {
 
     public record FriendMusicPresence(String username, String displayName, String roomId, String roomName, String currentSong) {}
     public record MusicInvitation(long id, String senderUsername, String senderDisplayName, String receiverUsername, String roomId, String roomName) {}
+    public record RoomActiveListener(String username, String displayName) {}
 
     public record RoomSyncState(
         String roomId,
@@ -252,6 +253,26 @@ public final class MusicPresenceRepository {
             q.setString(1, username);
             q.executeUpdate();
         } catch (SQLException ignored) { }
+    }
+
+    public List<RoomActiveListener> getRoomActiveListeners(String roomId) {
+        List<RoomActiveListener> list = new ArrayList<>();
+        if (roomId == null || roomId.isBlank()) return list;
+        String sql = """
+            SELECT username, display_name
+            FROM music_presence
+            WHERE room_id = ?
+              AND updated_at >= CURRENT_TIMESTAMP - INTERVAL '30 seconds'
+            ORDER BY updated_at ASC
+        """;
+        try (Connection c = database.connect(); PreparedStatement q = c.prepareStatement(sql)) {
+            q.setString(1, roomId);
+            ResultSet rs = q.executeQuery();
+            while (rs.next()) {
+                list.add(new RoomActiveListener(rs.getString(1), rs.getString(2)));
+            }
+        } catch (SQLException ignored) { }
+        return list;
     }
 
     public FriendMusicPresence getFriendPresence(String friendUsername) {

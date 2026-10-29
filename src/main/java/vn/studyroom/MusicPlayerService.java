@@ -496,7 +496,7 @@ public final class MusicPlayerService {
             "linear-gradient(to bottom, #1e1b4b 0%, #0f172a 60%, #121212 100%)", "#6366f1",
             "system", "StudyTogether", false, null,
             "https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=600&q=80",
-            savedTracks, List.of("Bạn", "Lan", "Minh"));
+            savedTracks, new ArrayList<>());
 
         // Room 2: Spotify Deep Focus (Official Spotify)
         List<MusicTrack> spFocus = new ArrayList<>(List.of(
@@ -514,7 +514,7 @@ public final class MusicPlayerService {
             "Âm nhạc ambient không lời giúp loại bỏ tạp âm, đưa não bộ vào trạng thái tập trung sâu.",
             "linear-gradient(to bottom, #1e3a8a 0%, #0f172a 60%, #121212 100%)", "#3b82f6",
             "spotify", "Spotify Official", false, "https://open.spotify.com/playlist/37i9dQZF1DWZeKCadgRdKQ",
-            "https://i.scdn.co/image/ab67706f000000025551996f500d9f805a57e0d8", spFocus, List.of("Huy", "Thảo", "Hải Đăng"));
+            "https://i.scdn.co/image/ab67706f000000025551996f500d9f805a57e0d8", spFocus, new ArrayList<>());
 
         // Room 3: Spotify Peaceful Piano
         List<MusicTrack> spPiano = new ArrayList<>(List.of(
@@ -533,7 +533,7 @@ public final class MusicPlayerService {
             "Những phím đàn piano mộc thư giãn và tinh tế cho những buổi tối ôn tập yên ả.",
             "linear-gradient(to bottom, #4c1d95 0%, #2e1065 60%, #121212 100%)", "#a855f7",
             "spotify", "Spotify Official", false, "https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO",
-            "https://i.scdn.co/image/ab67706f00000002d073e656e546e43bc387ad79", spPiano, List.of("Quỳnh", "Bảo", "Duy"));
+            "https://i.scdn.co/image/ab67706f00000002d073e656e546e43bc387ad79", spPiano, new ArrayList<>());
 
         // Room 4: Spotify Coffee Table Jazz & Acoustic
         List<MusicTrack> spJazz = new ArrayList<>(List.of(
@@ -551,7 +551,7 @@ public final class MusicPlayerService {
             "Jazz mộc ấm áp như đang ngồi học tại một quán cafe yên tĩnh buổi sáng.",
             "linear-gradient(to bottom, #451a03 0%, #291203 60%, #121212 100%)", "#f59e0b",
             "spotify", "Spotify Official", false, "https://open.spotify.com/playlist/37i9dQZF1DX65BNHJha8KG",
-            "https://i.scdn.co/image/ab67706f00000002c918a5be8933b9b9a6d09c25", spJazz, List.of("Huy", "Thảo", "Hải Đăng"));
+            "https://i.scdn.co/image/ab67706f00000002c918a5be8933b9b9a6d09c25", spJazz, new ArrayList<>());
 
         // Room 5: Spotify Nhạc Việt Chill & Acoustic
         List<MusicTrack> spVpop = new ArrayList<>(List.of(
@@ -569,7 +569,7 @@ public final class MusicPlayerService {
             "Tuyển tập giai điệu Indie và Acoustic Việt Nam mộc mạc, thư giãn cho tâm hồn.",
             "linear-gradient(to bottom, #78350f 0%, #451a03 60%, #121212 100%)", "#f59e0b",
             "spotify", "Spotify Official", false, "https://open.spotify.com/playlist/37i9dQZF1DX4g8Gs5vgUm9",
-            "https://i.scdn.co/image/ab67706f00000002d257262078bfdcab1d92cfb9", spVpop, List.of("Tuấn", "Ngọc", "Thảo"));
+            "https://i.scdn.co/image/ab67706f00000002d257262078bfdcab1d92cfb9", spVpop, new ArrayList<>());
 
         // Room 6: Spotify Coding Mode & Synthwave
         List<MusicTrack> spCode = new ArrayList<>(List.of(
@@ -587,7 +587,7 @@ public final class MusicPlayerService {
             "Nhịp điệu điện tử Retro & Cyberpunk kích thích tư duy logic khi viết code giải đề.",
             "linear-gradient(to bottom, #831843 0%, #4c0519 60%, #121212 100%)", "#f43f5e",
             "spotify", "Spotify Official", false, "https://open.spotify.com/playlist/37i9dQZF1DX5trt9i14X7j",
-            "https://i.scdn.co/image/ab67706f000000029249b3c997239ad41a5270f1", spCode, List.of("Khánh", "Trực"));
+            "https://i.scdn.co/image/ab67706f000000029249b3c997239ad41a5270f1", spCode, new ArrayList<>());
 
         // Room 7: Spotify Rain Sounds & Deep Calm
         List<MusicTrack> spRain = new ArrayList<>(List.of(
@@ -604,7 +604,7 @@ public final class MusicPlayerService {
             "Tiếng mưa tự nhiên trắng giúp giảm âu lo và tập trung ôn thi trong tĩnh lặng.",
             "linear-gradient(to bottom, #111827 0%, #030712 60%, #121212 100%)", "#6b7280",
             "spotify", "Spotify Official", false, "https://open.spotify.com/playlist/37i9dQZF1DX8ymr6UES72F",
-            "https://i.scdn.co/image/ab67706f00000002f5a560f845d064cf4f88e734", spRain, List.of("Ngọc", "Tuấn"));
+            "https://i.scdn.co/image/ab67706f00000002f5a560f845d064cf4f88e734", spRain, new ArrayList<>());
 
         rooms.addAll(List.of(r1, r2, r3, r4, r5, r6, r7));
     }

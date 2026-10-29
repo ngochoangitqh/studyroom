@@ -77,6 +77,7 @@ public class MusicRoomView extends VBox {
     private long lastSyncedVersion = -1;
     private volatile boolean isSyncing = false;
     private final java.util.Set<String> pendingRoomDownloads = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private long lastPresenceHeartbeat = 0;
 
     // Default aesthetic cover
     private static final String DEFAULT_COVER = "https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=600&q=80";
@@ -573,6 +574,13 @@ public class MusicRoomView extends VBox {
             syncTimeline.stop();
             syncTimeline = null;
         }
+        if (currentUser != null && player.getMusicPresenceRepository() != null) {
+            Thread.ofVirtual().start(() -> {
+                try {
+                    player.getMusicPresenceRepository().clearPresence(currentUser.username());
+                } catch (Exception ignored) {}
+            });
+        }
     }
 
     private void checkRoomSyncFromDatabase() {
@@ -603,6 +611,18 @@ public class MusicRoomView extends VBox {
                 } else if (!room.getPlaylist().isEmpty()) {
                     player.syncRoomStateToDatabase();
                 }
+
+                // 3. Keep presence active in DB & fetch current real listeners
+                long now = System.currentTimeMillis();
+                if (now - lastPresenceHeartbeat >= 3000) {
+                    lastPresenceHeartbeat = now;
+                    MusicTrack curTrk = player.getCurrentTrack();
+                    String curTitle = curTrk != null ? curTrk.title() : "";
+                    repo.updatePresence(currentUser.username(), currentUser.displayName(), roomId, room.getName(), curTitle);
+                }
+
+                List<MusicPresenceRepository.RoomActiveListener> activeList = repo.getRoomActiveListeners(roomId);
+                Platform.runLater(() -> updateActiveListeners(activeList));
             } catch (Exception ignored) {
             } finally {
                 isSyncing = false;
@@ -1092,26 +1112,43 @@ public class MusicRoomView extends VBox {
     }
 
     private void refreshListeners() {
+        updateActiveListeners(null);
+    }
+
+    private void updateActiveListeners(List<MusicPresenceRepository.RoomActiveListener> activeList) {
         listenersBox.getChildren().clear();
         MusicRoom room = player.getCurrentRoom();
         if (room == null) return;
 
-        List<String> list = new ArrayList<>(room.getListeners());
-        String myName = (currentUser != null && currentUser.displayName() != null && !currentUser.displayName().isBlank())
-                ? currentUser.displayName() : (currentUser != null ? currentUser.username() : "Bạn");
-        if (!list.contains(myName) && currentUser != null && !list.contains(currentUser.username())) {
-            list.add(0, myName);
+        List<MusicPresenceRepository.RoomActiveListener> list = new ArrayList<>();
+        boolean hasSelf = false;
+        if (activeList != null) {
+            for (var listener : activeList) {
+                if (currentUser != null && listener.username().equalsIgnoreCase(currentUser.username())) {
+                    hasSelf = true;
+                }
+                list.add(listener);
+            }
+        }
+        if (!hasSelf && currentUser != null) {
+            list.add(0, new MusicPresenceRepository.RoomActiveListener(currentUser.username(), currentUser.displayName()));
         }
 
-        String[] colors = {"#f43f5e", "#6366f1", "#06b6d4", "#10b981", "#8b5cf6"};
-        int count = Math.min(list.size(), 3);
-        for (int i = 0; i < count; i++) {
-            String name = list.get(i);
-            String color = colors[i % colors.length];
-            listenersBox.getChildren().add(createListenerAvatar(name, color, "ııl|ıı"));
+        // Update room listeners count & badge
+        room.getListeners().clear();
+        for (var l : list) {
+            room.getListeners().add(l.username());
         }
-        if (list.size() > 3) {
-            listenersBox.getChildren().add(createOverlappingAvatar("+" + (list.size() - 3)));
+        listenerBadgeLbl.setText(list.size() + " người đang nghe");
+
+        String[] colors = {"#f43f5e", "#6366f1", "#06b6d4", "#10b981", "#8b5cf6"};
+        for (int i = 0; i < list.size(); i++) {
+            var listener = list.get(i);
+            String uName = listener.username();
+            boolean isMe = currentUser != null && uName.equalsIgnoreCase(currentUser.username());
+            String dispName = isMe ? "Bạn" : (listener.displayName() != null && !listener.displayName().isBlank() ? listener.displayName() : uName);
+            String color = colors[i % colors.length];
+            listenersBox.getChildren().add(createListenerAvatar(uName, dispName, color, "ııl|ıı"));
         }
 
         // Add an invite friend avatar button right inside listenersBox
@@ -1141,7 +1178,7 @@ public class MusicRoomView extends VBox {
         listenersBox.getChildren().add(inviteBox);
     }
 
-    private VBox createListenerAvatar(String name, String waveColor, String waveText) {
+    private VBox createListenerAvatar(String username, String displayName, String waveColor, String waveText) {
         VBox box = new VBox(4);
         box.setAlignment(Pos.CENTER);
 
@@ -1151,7 +1188,7 @@ public class MusicRoomView extends VBox {
         avatarCircle.setMaxSize(radius * 2, radius * 2);
         avatarCircle.setAlignment(Pos.CENTER);
 
-        Image avatarImg = (authStore != null) ? authStore.getUserAvatarImage(name) : null;
+        Image avatarImg = (authStore != null && username != null) ? authStore.getUserAvatarImage(username) : null;
         if (avatarImg != null && !avatarImg.isError() && avatarImg.getWidth() > 0) {
             ImageView iv = new ImageView(avatarImg);
             iv.setSmooth(true);
@@ -1169,53 +1206,24 @@ public class MusicRoomView extends VBox {
             c.setFill(Color.web("#e0e7ff"));
             c.setStroke(Color.web("#c7d2fe"));
             c.setStrokeWidth(1.5);
-            Label initial = new Label(name.substring(0, 1).toUpperCase());
+            String init = "?";
+            if (displayName != null && !displayName.isBlank()) {
+                init = displayName.substring(0, 1).toUpperCase();
+            } else if (username != null && !username.isBlank()) {
+                init = username.substring(0, 1).toUpperCase();
+            }
+            Label initial = new Label(init);
             initial.setStyle("-fx-font-size: 14px; -fx-font-weight: 800; -fx-text-fill: #4338ca;");
             avatarCircle.getChildren().addAll(c, initial);
         }
 
-        Label nameLbl = new Label(name);
+        Label nameLbl = new Label(displayName != null ? displayName : username);
         nameLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: 600; -fx-text-fill: #0f172a;");
 
         Label waveLbl = new Label(waveText);
         waveLbl.setStyle("-fx-font-size: 10px; -fx-font-weight: 800; -fx-text-fill: " + waveColor + ";");
 
         box.getChildren().addAll(avatarCircle, nameLbl, waveLbl);
-        return box;
-    }
-
-    private VBox createOverlappingAvatar(String labelText) {
-        VBox box = new VBox(4);
-        box.setAlignment(Pos.CENTER);
-
-        HBox stack = new HBox(-10);
-        stack.setAlignment(Pos.CENTER);
-
-        Circle c1 = new Circle(17, Color.web("#fbcfe8"));
-        c1.setStroke(Color.WHITE);
-        c1.setStrokeWidth(2);
-
-        Circle c2 = new Circle(17, Color.web("#bfdbfe"));
-        c2.setStroke(Color.WHITE);
-        c2.setStrokeWidth(2);
-
-        StackPane plus = new StackPane();
-        Circle c3 = new Circle(17, Color.web("#e2e8f0"));
-        c3.setStroke(Color.WHITE);
-        c3.setStrokeWidth(2);
-        Label plusLbl = new Label("+3");
-        plusLbl.setStyle("-fx-font-size: 11px; -fx-font-weight: 800; -fx-text-fill: #475569;");
-        plus.getChildren().addAll(c3, plusLbl);
-
-        stack.getChildren().addAll(c1, c2, plus);
-
-        Label nameLbl = new Label(labelText);
-        nameLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: 600; -fx-text-fill: #0f172a;");
-
-        Region spacer = new Region();
-        spacer.setPrefHeight(12);
-
-        box.getChildren().addAll(stack, nameLbl, spacer);
         return box;
     }
 
