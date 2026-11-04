@@ -2399,9 +2399,9 @@ public final class StudyroomApp extends Application {
                 prepDocBtn.getStyleClass().add("button");
                 prepDocBtn.setOnAction(e -> onGoToMaterials.run());
 
-                Button testBoardBtn = new Button("✎ Bảng trắng");
-                testBoardBtn.getStyleClass().add("button");
-                testBoardBtn.setOnAction(e -> toast("Bảng trắng tương tác sẵn sàng khi bắt đầu buổi học."));
+                Button testBoardBtn = new Button("✎  Bảng trắng & Vẽ giảng bài");
+                testBoardBtn.getStyleClass().addAll("button", "button-primary");
+                testBoardBtn.setOnAction(e -> WhiteboardWindow.getInstance().show());
 
                 subActions.getChildren().addAll(prepDocBtn, testBoardBtn);
 
@@ -2528,10 +2528,10 @@ public final class StudyroomApp extends Application {
                 docBtn.setStyle("-fx-padding: 6 12; -fx-font-size: 12px;");
                 docBtn.setOnAction(e -> onGoToMaterials.run());
 
-                Button boardBtn = new Button("✎  Bảng trắng");
-                boardBtn.getStyleClass().add("button");
-                boardBtn.setStyle("-fx-padding: 6 12; -fx-font-size: 12px;");
-                boardBtn.setOnAction(e -> {});
+                Button boardBtn = new Button("✎  Bảng trắng & Vẽ màn hình");
+                boardBtn.getStyleClass().addAll("button", "button-primary");
+                boardBtn.setStyle("-fx-padding: 6 14; -fx-font-size: 12px; -fx-font-weight: 800;");
+                boardBtn.setOnAction(e -> WhiteboardWindow.getInstance().show());
 
                 streamActions.getChildren().addAll(stopBtn, minBtn, docBtn, boardBtn);
             } else {
@@ -2544,10 +2544,10 @@ public final class StudyroomApp extends Application {
                 handBtn.setStyle("-fx-padding: 6 12; -fx-font-size: 12px;");
                 handBtn.setOnAction(e -> {});
 
-                Button noteBtn = new Button("📄  Ghi chú cá nhân");
+                Button noteBtn = new Button("✎  Bảng vẽ & Ghi chú");
                 noteBtn.getStyleClass().add("button");
                 noteBtn.setStyle("-fx-padding: 6 12; -fx-font-size: 12px;");
-                noteBtn.setOnAction(e -> {});
+                noteBtn.setOnAction(e -> WhiteboardWindow.getInstance().show());
 
                 streamActions.getChildren().addAll(studentStatus, handBtn, noteBtn);
             }
@@ -2634,6 +2634,7 @@ public final class StudyroomApp extends Application {
         Button leaveBtn = new Button("🚪 Rời phòng");
         leaveBtn.getStyleClass().setAll("dock-btn-danger");
         leaveBtn.setOnAction(e -> {
+            WhiteboardWindow.getInstance().close();
             CameraEngine.getInstance().stop();
             CameraEngine.getInstance().setRawFrameCallback(null);
             classroomVoice.stop();
@@ -2655,11 +2656,15 @@ public final class StudyroomApp extends Application {
         Button membersBtn = new Button("👥 " + onlineMembers.size());
         membersBtn.getStyleClass().setAll("dock-btn");
 
+        Button boardDockBtn = new Button("✎ Bảng trắng");
+        boardDockBtn.getStyleClass().setAll("dock-btn");
+        boardDockBtn.setOnAction(e -> WhiteboardWindow.getInstance().show());
+
         Button chatBtn = new Button("💬 Chat");
         chatBtn.getStyleClass().setAll("dock-btn");
         chatBtn.setOnAction(e -> showChat());
 
-        dock.getChildren().addAll(micBtn, speakerBtn, camBtn, shareScreenBtn, leaveBtn, membersBtn, chatBtn);
+        dock.getChildren().addAll(micBtn, speakerBtn, camBtn, shareScreenBtn, boardDockBtn, leaveBtn, membersBtn, chatBtn);
 
         leftPane.getChildren().addAll(deck, dock);
 
@@ -5326,6 +5331,7 @@ public final class StudyroomApp extends Application {
         // Disabled: do not spawn toast popup labels that cover buttons or stack up on UI
     }
     @Override public void stop() {
+        WhiteboardWindow.getInstance().close();
         if (user != null) musicPresenceRepo.clearPresence(user.username());
         musicPlayer.stop();
         classroomVoice.stop();
