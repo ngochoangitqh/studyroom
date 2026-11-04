@@ -293,8 +293,8 @@ public final class WhiteboardWindow {
         setupCanvasEvents();
 
         toolbarCard = buildFloatingToolbar();
-        // Position toolbar at top center
-        toolbarCard.setLayoutX(Math.max(20, (screenW - 820) / 2.0));
+        // Position toolbar at top center with comfortable wide width
+        toolbarCard.setLayoutX(Math.max(20, (screenW - 1060) / 2.0));
         toolbarCard.setLayoutY(24);
 
         rootPane.getChildren().addAll(canvas, toolbarCard);
@@ -555,14 +555,16 @@ public final class WhiteboardWindow {
     private VBox buildFloatingToolbar() {
         VBox card = new VBox(8);
         card.setStyle(
-            "-fx-background-color: rgba(30, 32, 48, 0.95); " +
+            "-fx-background-color: rgba(30, 32, 48, 0.96); " +
             "-fx-background-radius: 16; " +
-            "-fx-padding: 8 14; " +
-            "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.5), 18, 0, 0, 4); " +
-            "-fx-border-color: rgba(255, 255, 255, 0.15); " +
+            "-fx-padding: 8 16; " +
+            "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.5), 20, 0, 0, 4); " +
+            "-fx-border-color: rgba(255, 255, 255, 0.16); " +
             "-fx-border-radius: 16;"
         );
-        card.setMaxWidth(820);
+        card.setMinWidth(Region.USE_PREF_SIZE);
+        card.setPrefWidth(1060);
+        card.setMaxWidth(1120);
 
         // Header / Drag handle
         HBox header = new HBox(8);
@@ -572,7 +574,7 @@ public final class WhiteboardWindow {
         Label dragIcon = new Label("✥");
         dragIcon.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 14px; -fx-font-weight: bold;");
 
-        Label title = new Label("Studyroom Whiteboard · Bảng Giảng Bài");
+        Label title = new Label("Studyroom Whiteboard");
         title.setStyle("-fx-text-fill: #f8fafc; -fx-font-weight: 800; -fx-font-size: 12.5px;");
 
         Region hgap = new Region();
@@ -611,6 +613,7 @@ public final class WhiteboardWindow {
 
         // Mouse Passthrough Button (for clicking PowerPoint/Desktop underneath)
         passthroughBtn = new ToggleButton("🖱️ Thao tác chuột");
+        passthroughBtn.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
         passthroughBtn.setTooltip(new Tooltip("Tạm dừng vẽ để nhấp chuột chuyển slide / lướt web bên dưới"));
         passthroughBtn.setStyle(
             "-fx-background-color: rgba(255, 255, 255, 0.08); -fx-text-fill: #cbd5e1; -fx-font-size: 11px; -fx-font-weight: 700; -fx-padding: 3 8; -fx-background-radius: 8; -fx-cursor: hand;"
@@ -736,6 +739,7 @@ public final class WhiteboardWindow {
     }
 
     private void styleModeBtn(ToggleButton btn) {
+        btn.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
         btn.setStyle(
             "-fx-background-color: rgba(255, 255, 255, 0.08); " +
             "-fx-text-fill: #cbd5e1; " +
@@ -772,6 +776,7 @@ public final class WhiteboardWindow {
 
     private ToggleButton createToolBtn(String label, Tool tool, ToggleGroup group, boolean defSelected) {
         ToggleButton btn = new ToggleButton(label);
+        btn.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
         btn.setToggleGroup(group);
         btn.setSelected(defSelected);
         applyToolBtnStyle(btn, defSelected);
@@ -815,6 +820,7 @@ public final class WhiteboardWindow {
 
     private Button createActionBtn(String label, Runnable action, String tooltipText) {
         Button b = new Button(label);
+        b.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
         b.setStyle(
             "-fx-background-color: rgba(255, 255, 255, 0.08); " +
             "-fx-text-fill: #f1f5f9; " +
