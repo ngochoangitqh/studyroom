@@ -24,6 +24,7 @@ import javafx.util.Duration;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
@@ -51,6 +52,8 @@ public class MusicRoomView extends VBox {
     private Label roomTitleLbl;
     private Label roomDescLbl;
     private Label listenerBadgeLbl;
+
+    private Button deleteRoomBtn;
 
     // Center Stage controls
     private ImageView ambientGlowView;
@@ -175,6 +178,18 @@ public class MusicRoomView extends VBox {
             if (onInviteFriends != null) onInviteFriends.run();
         });
 
+        // Delete room button (for user-created rooms)
+        Label delIcon = new Label("🗑️");
+        delIcon.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol'; -fx-font-size: 12px;");
+        deleteRoomBtn = new Button("Xóa phòng", delIcon);
+        deleteRoomBtn.setGraphicTextGap(6);
+        deleteRoomBtn.setStyle("-fx-font-family: 'Segoe UI', Arial, sans-serif; -fx-background-color: #fee2e2; -fx-border-color: #fca5a5; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #dc2626; -fx-font-weight: 700; -fx-font-size: 12px; -fx-cursor: hand;");
+        deleteRoomBtn.setOnMouseEntered(e -> deleteRoomBtn.setStyle("-fx-font-family: 'Segoe UI', Arial, sans-serif; -fx-background-color: #fecaca; -fx-border-color: #f87171; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #b91c1c; -fx-font-weight: 700; -fx-font-size: 12px; -fx-cursor: hand;"));
+        deleteRoomBtn.setOnMouseExited(e -> deleteRoomBtn.setStyle("-fx-font-family: 'Segoe UI', Arial, sans-serif; -fx-background-color: #fee2e2; -fx-border-color: #fca5a5; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 14; -fx-text-fill: #dc2626; -fx-font-weight: 700; -fx-font-size: 12px; -fx-cursor: hand;"));
+        deleteRoomBtn.setOnAction(e -> confirmAndDeleteCurrentRoom());
+        deleteRoomBtn.setVisible(false);
+        deleteRoomBtn.setManaged(false);
+
         // Leave / Switch Room button
         Label leaveIcon = new Label("🚪");
         leaveIcon.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Segoe UI Symbol'; -fx-font-size: 13px;");
@@ -201,7 +216,7 @@ public class MusicRoomView extends VBox {
             if (onInviteFriends != null) onInviteFriends.run();
         });
 
-        rightActions.getChildren().addAll(badgePill, inviteBtn, leaveBtn, moreBtn);
+        rightActions.getChildren().addAll(badgePill, inviteBtn, deleteRoomBtn, leaveBtn, moreBtn);
         header.getChildren().addAll(titleCol, rightActions);
 
         getChildren().add(header);
@@ -862,6 +877,19 @@ public class MusicRoomView extends VBox {
             roomDescLbl.setText(room.getDescription() != null ? room.getDescription() : "Cùng nghe nhạc, cùng tập trung 🎧");
             int listenerCount = room.getListeners().size();
             listenerBadgeLbl.setText(listenerCount + " người đang nghe");
+
+            if (deleteRoomBtn != null) {
+                boolean canDelete = room.isUserCreated() && (
+                    currentUser == null ||
+                    room.getOwnerUsername() == null ||
+                    room.getOwnerUsername().isBlank() ||
+                    room.getOwnerUsername().equalsIgnoreCase(currentUser.username()) ||
+                    "admin".equalsIgnoreCase(currentUser.username()) ||
+                    "friend".equalsIgnoreCase(room.getOwnerUsername())
+                );
+                deleteRoomBtn.setVisible(canDelete);
+                deleteRoomBtn.setManaged(canDelete);
+            }
         }
     }
 
@@ -1230,6 +1258,70 @@ public class MusicRoomView extends VBox {
     // =========================================================================
     // 7. ROOM SELECTOR POPUP MENU
     // =========================================================================
+    private void confirmAndDeleteCurrentRoom() {
+
+        MusicRoom room = player.getCurrentRoom();
+
+        if (room == null || !room.isUserCreated()) return;
+
+
+
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+
+        alert.setTitle("Xác nhận xóa phòng");
+
+        alert.setHeaderText("Xóa phòng nghe nhạc \"" + room.getName() + "\"?");
+
+        alert.setContentText("Bạn có chắc chắn muốn xóa phòng nghe nhạc này không? Toàn bộ danh sách phát và trạng thái phòng sẽ bị xóa và hành động này không thể hoàn tác.");
+
+        if (getScene() != null && getScene().getWindow() != null) {
+
+            alert.initOwner(getScene().getWindow());
+
+        }
+
+
+
+        Optional<ButtonType> result = alert.showAndWait();
+
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+
+            stopRoomSync();
+
+            String rName = room.getName();
+
+            boolean ok = player.deleteUserRoom(room.getId(), currentUser != null ? currentUser.username() : null);
+
+            if (ok) {
+
+                if (toastCallback != null) {
+
+                    toastCallback.accept("Đã xóa phòng \"" + rName + "\" thành công");
+
+                }
+
+                if (onLeaveRoom != null) {
+
+                    onLeaveRoom.run();
+
+                }
+
+            } else {
+
+                if (toastCallback != null) {
+
+                    toastCallback.accept("Không thể xóa phòng nghe nhạc này");
+
+                }
+
+            }
+
+        }
+
+    }
+
+
+
     private void showRoomSelectorMenu(javafx.scene.Node anchor) {
         ContextMenu menu = new ContextMenu();
         if (onLeaveRoom != null) {
@@ -1250,6 +1342,18 @@ public class MusicRoomView extends VBox {
         MenuItem createItem = new MenuItem("➕ Tạo phòng nghe nhạc mới...");
         createItem.setOnAction(e -> showCreateRoomDialog());
         menu.getItems().add(createItem);
+
+        if (player.getCurrentRoom() != null && player.getCurrentRoom().isUserCreated()) {
+
+            MenuItem deleteItem = new MenuItem("🗑️ Xóa phòng này...");
+
+            deleteItem.setStyle("-fx-text-fill: #dc2626; -fx-font-weight: bold;");
+
+            deleteItem.setOnAction(e -> confirmAndDeleteCurrentRoom());
+
+            menu.getItems().add(deleteItem);
+
+        }
 
         menu.show(anchor, javafx.geometry.Side.BOTTOM, 0, 4);
     }

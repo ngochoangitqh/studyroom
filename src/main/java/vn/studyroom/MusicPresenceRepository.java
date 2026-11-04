@@ -227,6 +227,42 @@ public final class MusicPresenceRepository {
         } catch (SQLException ignored) { }
     }
 
+    public record SavedCustomRoom(String roomId, String roomName, String creatorUsername) {}
+
+    public List<SavedCustomRoom> getSavedCustomRooms() {
+        List<SavedCustomRoom> list = new ArrayList<>();
+        String sql = "SELECT room_id, room_name, last_updated_by FROM music_room_state WHERE room_id LIKE 'room_user_%' ORDER BY updated_at DESC";
+        try (Connection c = database.connect(); PreparedStatement q = c.prepareStatement(sql)) {
+            ResultSet rs = q.executeQuery();
+            while (rs.next()) {
+                list.add(new SavedCustomRoom(rs.getString(1), rs.getString(2), rs.getString(3)));
+            }
+        } catch (SQLException ignored) { }
+        return list;
+    }
+
+    public void deleteRoomData(String roomId) {
+        if (roomId == null || roomId.isBlank()) return;
+        try (Connection c = database.connect()) {
+            try (PreparedStatement q = c.prepareStatement("DELETE FROM music_room_playlist WHERE room_id = ?")) {
+                q.setString(1, roomId);
+                q.executeUpdate();
+            }
+            try (PreparedStatement q = c.prepareStatement("DELETE FROM music_room_state WHERE room_id = ?")) {
+                q.setString(1, roomId);
+                q.executeUpdate();
+            }
+            try (PreparedStatement q = c.prepareStatement("DELETE FROM music_invite WHERE room_id = ?")) {
+                q.setString(1, roomId);
+                q.executeUpdate();
+            }
+            try (PreparedStatement q = c.prepareStatement("UPDATE music_presence SET room_id = 'room_sp_focus', room_name = 'Focus Beats' WHERE room_id = ?")) {
+                q.setString(1, roomId);
+                q.executeUpdate();
+            }
+        } catch (SQLException ignored) { }
+    }
+
     public void updatePresence(String username, String displayName, String roomId, String roomName, String currentSong) {
         String sql = """
             INSERT INTO music_presence (username, display_name, room_id, room_name, current_song, updated_at)

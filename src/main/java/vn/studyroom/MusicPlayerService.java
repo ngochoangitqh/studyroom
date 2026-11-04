@@ -667,6 +667,106 @@ public final class MusicPlayerService {
         return newRoom;
     }
 
+    public synchronized boolean deleteUserRoom(String roomId, String requesterUsername) {
+        if (roomId == null || roomId.isBlank()) return false;
+        MusicRoom target = null;
+        for (MusicRoom r : rooms) {
+            if (r.getId().equals(roomId)) {
+                target = r;
+                break;
+            }
+        }
+        if (target == null) return false;
+        // Do not allow deleting system default rooms
+        if (!target.isUserCreated()) return false;
+
+        // Permissions check
+        if (requesterUsername != null && !requesterUsername.isBlank() && target.getOwnerUsername() != null && !target.getOwnerUsername().isBlank()) {
+            boolean isOwner = requesterUsername.equalsIgnoreCase(target.getOwnerUsername());
+            boolean isSelf = requesterUsername.equalsIgnoreCase(currentUsername);
+            boolean isAdmin = "admin".equalsIgnoreCase(requesterUsername);
+            boolean isFriend = "friend".equalsIgnoreCase(target.getOwnerUsername());
+            if (!isOwner && !isSelf && !isAdmin && !isFriend) {
+                return false;
+            }
+        }
+
+        // Clean up DB asynchronously
+        if (musicPresenceRepository != null) {
+            final String rid = roomId;
+            Thread.ofVirtual().start(() -> musicPresenceRepository.deleteRoomData(rid));
+        }
+
+        // Remove locally & switch room if we were in it
+        deleteRoomLocally(roomId);
+
+        // Broadcast to P2P network
+        broadcastSync("DELETE_ROOM", roomId);
+        return true;
+    }
+
+    public synchronized void deleteRoomLocally(String roomId) {
+        if (roomId == null || roomId.isBlank()) return;
+        MusicRoom toRemove = null;
+        for (MusicRoom r : rooms) {
+            if (r.getId().equals(roomId)) {
+                toRemove = r;
+                break;
+            }
+        }
+        if (toRemove == null || !toRemove.isUserCreated()) return;
+
+        boolean wasCurrent = (currentRoom != null && currentRoom.getId().equals(roomId));
+        rooms.remove(toRemove);
+
+        if (wasCurrent) {
+            pause();
+            if (activeMediaPlayer != null) {
+                try {
+                    activeMediaPlayer.stop();
+                    activeMediaPlayer.dispose();
+                } catch (Exception ignored) {}
+                activeMediaPlayer = null;
+            }
+            if (!rooms.isEmpty()) {
+                switchRoom(rooms.get(0).getId());
+            }
+        }
+
+        notifyRoomUpdated();
+    }
+
+    public void syncCustomRoomsFromDatabase() {
+        if (musicPresenceRepository == null) return;
+        Thread.ofVirtual().start(() -> {
+            try {
+                var list = musicPresenceRepository.getSavedCustomRooms();
+                if (list != null && !list.isEmpty()) {
+                    Platform.runLater(() -> {
+                        boolean added = false;
+                        for (var item : list) {
+                            boolean exists = rooms.stream().anyMatch(r -> r.getId().equals(item.roomId()));
+                            if (!exists) {
+                                MusicRoom newRoom = new MusicRoom(
+                                    item.roomId(), item.roomName(),
+                                    "Phòng nghe nhạc học tập 🎧",
+                                    "linear-gradient(to bottom, #1e1b4b 0%, #0f172a 60%, #121212 100%)", "#7c5cff",
+                                    item.creatorUsername(), item.creatorUsername(), true, null, null,
+                                    new ArrayList<>(), new ArrayList<>()
+                                );
+                                rooms.add(newRoom);
+                                added = true;
+                            }
+                        }
+                        if (added) {
+                            notifyRoomUpdated();
+                        }
+                    });
+                }
+            } catch (Exception ignored) {}
+        });
+    }
+
     public void switchRoom(String roomId) {
         switchRoom(roomId, null);
     }
@@ -1040,6 +1140,16 @@ public final class MusicPlayerService {
             String originUser = parts[4];
 
             Platform.runLater(() -> {
+                if ("DELETE_ROOM".equals(action)) {
+
+                    String targetRoomId = (payload != null && !payload.isBlank()) ? payload.trim() : roomId;
+
+                    deleteRoomLocally(targetRoomId);
+
+                    return;
+
+                }
+
                 if ("CREATE_ROOM".equals(action)) {
                     String[] d = payload.split(":::", 6);
                     if (d.length >= 5) {

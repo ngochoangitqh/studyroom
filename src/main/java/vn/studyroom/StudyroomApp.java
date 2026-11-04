@@ -4272,6 +4272,7 @@ public final class StudyroomApp extends Application {
 
     private void showMusicLounge() {
         refreshSidebar();
+        musicPlayer.syncCustomRoomsFromDatabase();
         base("Sảnh phòng nghe nhạc · StudyTogether 🎧", "Không gian âm nhạc trực tuyến, cùng nghe & tập trung học tập");
 
         HBox topBar = new HBox(12);
@@ -4353,6 +4354,32 @@ public final class StudyroomApp extends Application {
             Label membersLbl = new Label("📶 " + listenerCount + " đang nghe");
             membersLbl.setStyle("-fx-font-size: 12px; -fx-text-fill: #f43f5e; -fx-font-weight: bold;");
             cardHeader.getChildren().addAll(iconLbl, codeBadge, hgap, membersLbl);
+
+            if (r.isUserCreated() && (
+                r.getOwnerUsername() == null || r.getOwnerUsername().isBlank() ||
+                r.getOwnerUsername().equalsIgnoreCase(user.username()) ||
+                "friend".equalsIgnoreCase(r.getOwnerUsername()) ||
+                "admin".equalsIgnoreCase(user.username())
+            )) {
+                Button delBtn = new Button("🗑️");
+                delBtn.setTooltip(new Tooltip("Xóa phòng"));
+                delBtn.setStyle("-fx-background-color: #fee2e2; -fx-text-fill: #dc2626; -fx-font-size: 11px; -fx-padding: 3 7; -fx-background-radius: 8; -fx-cursor: hand; -fx-border-color: #fca5a5; -fx-border-radius: 8;");
+                delBtn.setOnMouseEntered(e -> delBtn.setStyle("-fx-background-color: #fecaca; -fx-text-fill: #b91c1c; -fx-font-size: 11px; -fx-padding: 3 7; -fx-background-radius: 8; -fx-cursor: hand; -fx-border-color: #f87171; -fx-border-radius: 8;"));
+                delBtn.setOnMouseExited(e -> delBtn.setStyle("-fx-background-color: #fee2e2; -fx-text-fill: #dc2626; -fx-font-size: 11px; -fx-padding: 3 7; -fx-background-radius: 8; -fx-cursor: hand; -fx-border-color: #fca5a5; -fx-border-radius: 8;"));
+                delBtn.setOnAction(e -> {
+                    Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+                    confirm.setTitle("Xác nhận xóa phòng");
+                    confirm.setHeaderText("Xóa phòng nghe nhạc \"" + r.getName() + "\"?");
+                    confirm.setContentText("Bạn có chắc chắn muốn xóa phòng này không? Toàn bộ danh sách phát sẽ bị xóa.");
+                    if (scene != null && scene.getWindow() != null) confirm.initOwner(scene.getWindow());
+                    if (confirm.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) {
+                        musicPlayer.deleteUserRoom(r.getId(), user.username());
+                        toast("Đã xóa phòng " + r.getName());
+                        showMusicLounge();
+                    }
+                });
+                cardHeader.getChildren().add(delBtn);
+            }
 
             Label titleLbl = new Label(r.getName());
             titleLbl.setStyle("-fx-font-size: 17px; -fx-font-weight: 800; -fx-text-fill: -ink;");
