@@ -59,5 +59,8 @@ Write-Host ""
 Write-Host "Dang khoi dong Studyroom, vui long cho giay lat..." -ForegroundColor Green
 Write-Host "==========================================================" -ForegroundColor Cyan
 
-$peerParam = if ($env:STUDYROOM_PEER) { "-Dstudyroom.peer=$env:STUDYROOM_PEER" } else { "" }
-& $maven "-Dmaven.repo.local=$projectRoot\.tools\m2" $peerParam javafx:run
+if ($env:STUDYROOM_PEER) {
+    & $maven "-Dmaven.repo.local=$projectRoot\.tools\m2" "-Dstudyroom.peer=$env:STUDYROOM_PEER" javafx:run
+} else {
+    & $maven "-Dmaven.repo.local=$projectRoot\.tools\m2" javafx:run
+}
