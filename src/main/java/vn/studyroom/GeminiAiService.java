@@ -126,27 +126,33 @@ public final class GeminiAiService {
     }
 
     public void askGeminiAsync(String username, String userMessage, Consumer<String> onSuccess, Consumer<String> onError) {
-        if (userMessage == null || userMessage.isBlank()) return;
+        askGeminiWithImageAsync(username, userMessage, null, null, onSuccess, onError);
+    }
 
-        saveMessage(username, "user", userMessage);
+    public void askGeminiWithImageAsync(String username, String userMessage, byte[] imageBytes, String mimeType, Consumer<String> onSuccess, Consumer<String> onError) {
+        String effectivePrompt = (userMessage == null || userMessage.isBlank())
+            ? "Hãy đọc đề bài trong hình ảnh này và giải chi tiết từng bước dễ hiểu."
+            : userMessage;
+
+        String savedLogText = (imageBytes != null && imageBytes.length > 0)
+            ? "[📷 Đính kèm ảnh bài tập] " + effectivePrompt
+            : effectivePrompt;
+        saveMessage(username, "user", savedLogText);
 
         Thread.ofVirtual().start(() -> {
             try {
                 List<ChatMessage> history = getHistory(username);
                 List<ChatMessage> context = new ArrayList<>();
 
-                // Add up to last 6 history messages
                 if (history != null && !history.isEmpty()) {
                     int start = Math.max(0, history.size() - 6);
                     context.addAll(history.subList(start, history.size()));
                 }
 
-                // Ensure current user message is always present at the end
-                if (context.isEmpty() || !userMessage.equals(context.get(context.size() - 1).content())) {
-                    context.add(new ChatMessage(UUID.randomUUID().toString(), username != null ? username : "user", "user", userMessage, new Timestamp(System.currentTimeMillis())));
+                if (context.isEmpty() || !savedLogText.equals(context.get(context.size() - 1).content())) {
+                    context.add(new ChatMessage(UUID.randomUUID().toString(), username != null ? username : "user", "user", effectivePrompt, new Timestamp(System.currentTimeMillis())));
                 }
 
-                // Build alternating valid roles (user -> model -> user)
                 List<ChatMessage> cleanMessages = new ArrayList<>();
                 String lastRole = null;
                 for (ChatMessage m : context) {
@@ -162,22 +168,22 @@ public final class GeminiAiService {
                     }
                 }
 
-                // Final validation: must not be empty and must end with user role
                 if (cleanMessages.isEmpty() || !"user".equals(cleanMessages.get(cleanMessages.size() - 1).role())) {
-                    cleanMessages.add(new ChatMessage(UUID.randomUUID().toString(), username != null ? username : "user", "user", userMessage, new Timestamp(System.currentTimeMillis())));
+                    cleanMessages.add(new ChatMessage(UUID.randomUUID().toString(), username != null ? username : "user", "user", effectivePrompt, new Timestamp(System.currentTimeMillis())));
                 }
 
                 String[] candidateModels = {
+                    "gemini-2.5-flash",
+                    "gemini-2.0-flash",
                     "gemini-flash-lite-latest",
                     "gemini-3.5-flash",
-                    "gemini-3.5-flash-lite",
                     "gemini-3-flash-preview"
                 };
 
                 String response = null;
                 for (String model : candidateModels) {
                     try {
-                        response = requestGemini(model, cleanMessages);
+                        response = requestGemini(model, cleanMessages, imageBytes, mimeType);
                         if (response != null && !response.isBlank()) {
                             break;
                         }
@@ -189,7 +195,7 @@ public final class GeminiAiService {
                     final String finalResponse = response;
                     Platform.runLater(() -> onSuccess.accept(finalResponse));
                 } else {
-                    Platform.runLater(() -> onError.accept("Không nhận được phản hồi từ AI. Vui lòng kiểm tra lại kết nối và thử lại."));
+                    Platform.runLater(() -> onError.accept("Không nhận được phản hồi từ AI. Vui lòng kiểm tra lại kết nối hoặc khóa API."));
                 }
             } catch (Exception ex) {
                 Platform.runLater(() -> onError.accept("Lỗi kết nối Gemini AI: " + ex.getMessage()));
@@ -197,7 +203,7 @@ public final class GeminiAiService {
         });
     }
 
-    private String requestGemini(String model, List<ChatMessage> messages) {
+    private String requestGemini(String model, List<ChatMessage> messages, byte[] imageBytes, String mimeType) {
         String apiKey = getApiKey();
         String endpoint = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey;
 
@@ -211,9 +217,19 @@ public final class GeminiAiService {
         for (int i = 0; i < messages.size(); i++) {
             ChatMessage m = messages.get(i);
             String role = "user".equalsIgnoreCase(m.role()) ? "user" : "model";
+            boolean isLastUserWithImage = (i == messages.size() - 1) && "user".equals(role) && imageBytes != null && imageBytes.length > 0;
             json.append("    {\n");
             json.append("      \"role\": \"").append(role).append("\",\n");
-            json.append("      \"parts\": [{\"text\": \"").append(escapeJson(m.content())).append("\"}]\n");
+            if (isLastUserWithImage) {
+                String b64 = java.util.Base64.getEncoder().encodeToString(imageBytes);
+                String mime = (mimeType != null && !mimeType.isBlank()) ? mimeType : "image/png";
+                json.append("      \"parts\": [\n");
+                json.append("        {\"text\": \"").append(escapeJson(m.content())).append("\"},\n");
+                json.append("        {\"inline_data\": {\"mime_type\": \"").append(mime).append("\", \"data\": \"").append(b64).append("\"}}\n");
+                json.append("      ]\n");
+            } else {
+                json.append("      \"parts\": [{\"text\": \"").append(escapeJson(m.content())).append("\"}]\n");
+            }
             json.append("    }").append(i < messages.size() - 1 ? "," : "").append("\n");
         }
 
@@ -224,7 +240,7 @@ public final class GeminiAiService {
             HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
                 .header("Content-Type", "application/json")
-                .timeout(Duration.ofSeconds(12))
+                .timeout(Duration.ofSeconds(25))
                 .POST(HttpRequest.BodyPublishers.ofString(json.toString(), StandardCharsets.UTF_8))
                 .build();
 

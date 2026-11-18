@@ -444,6 +444,39 @@ public final class CourseRepository {
         }
     }
 
+    public void setHandRaised(String courseId, String username, String displayName, boolean raised) {
+        if (courseId == null || username == null) return;
+        String sql = """
+            INSERT INTO classroom_hand_raise (course_id, username, display_name, is_raised, updated_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT (course_id, username) DO UPDATE SET
+                display_name = EXCLUDED.display_name,
+                is_raised = EXCLUDED.is_raised,
+                updated_at = CURRENT_TIMESTAMP
+        """;
+        try (Connection c = database.connect(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, courseId);
+            ps.setString(2, username);
+            ps.setString(3, displayName != null ? displayName : username);
+            ps.setBoolean(4, raised);
+            ps.executeUpdate();
+        } catch (SQLException ignored) {}
+    }
+
+    public List<String> getRaisedHandUsernames(String courseId) {
+        List<String> list = new ArrayList<>();
+        if (courseId == null) return list;
+        String sql = "SELECT username FROM classroom_hand_raise WHERE course_id = ? AND is_raised = TRUE AND updated_at >= CURRENT_TIMESTAMP - INTERVAL '15 minutes'";
+        try (Connection c = database.connect(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, courseId);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                list.add(rs.getString(1));
+            }
+        } catch (SQLException ignored) {}
+        return list;
+    }
+
     public record Course(String id, String code, String title, String description, String ownerUsername, String password, int currentSlide, int memberCount, boolean isPresenting, String hostIp, int screenPort) { }
     public record Material(String id, String courseId, String title, String fileType, String fileSize, String uploadedBy, String originalFileName) { }
 

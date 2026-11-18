@@ -327,6 +327,38 @@ public final class Database {
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
                 )
                 """);
+
+            statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS study_stats (
+                  username VARCHAR(64) PRIMARY KEY,
+                  display_name VARCHAR(100) NOT NULL,
+                  total_minutes INT DEFAULT 0 NOT NULL,
+                  pomodoro_count INT DEFAULT 0 NOT NULL,
+                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+                )
+                """);
+
+            statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS study_note (
+                  note_id VARCHAR(64) PRIMARY KEY,
+                  username VARCHAR(64) NOT NULL,
+                  title VARCHAR(200) NOT NULL,
+                  content TEXT DEFAULT '' NOT NULL,
+                  todo_text TEXT DEFAULT '' NOT NULL,
+                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+                )
+                """);
+
+            statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS classroom_hand_raise (
+                  course_id VARCHAR(64) NOT NULL,
+                  username VARCHAR(64) NOT NULL,
+                  display_name VARCHAR(100) NOT NULL,
+                  is_raised BOOLEAN DEFAULT FALSE NOT NULL,
+                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                  PRIMARY KEY (course_id, username)
+                )
+                """);
         } catch (SQLException exception) {
             System.err.println("⚠️ Không thể khởi tạo bảng Database PostgreSQL: " + exception.getMessage());
         }

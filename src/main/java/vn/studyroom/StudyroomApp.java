@@ -90,6 +90,8 @@ public final class StudyroomApp extends Application {
     private int myCameraPort = 0;
     private String myVoiceIp = "";
     private volatile boolean isLocalSpeaking = false;
+    private boolean isHandRaised = false;
+    private final Set<String> raisedHandUsers = ConcurrentHashMap.newKeySet();
     private final Map<String, Long> peerSpeakingLastTime = new ConcurrentHashMap<>();
     private final Map<String, Runnable> tileSpeakingUpdateCallbacks = new ConcurrentHashMap<>();
     private Button playButton;
@@ -183,6 +185,24 @@ public final class StudyroomApp extends Application {
                         CallRepository.CallSession s = new CallRepository.CallSession(callId, roomId, callerName, callerUser, callType, "RINGING");
                         promptIncomingCall(s);
                     }
+                } else if (packet.body().startsWith("RAISE_HAND|")) {
+                    String[] parts = packet.body().split("\\|", 5);
+                    if (parts.length >= 5) {
+                        String rUser = parts[2];
+                        String rName = parts[3];
+                        boolean raised = Boolean.parseBoolean(parts[4]);
+                        if (raised) {
+                            raisedHandUsers.add(rUser);
+                            if (!rUser.equalsIgnoreCase(user.username())) {
+                                PomodoroStudyView.playCompletionChime();
+                                toast("✋ " + rName + " đang giơ tay xin phát biểu!");
+                            }
+                        } else {
+                            raisedHandUsers.remove(rUser);
+                        }
+                        Runnable cb = tileSpeakingUpdateCallbacks.get(rUser);
+                        if (cb != null) cb.run();
+                    }
                 } else if (selectedRoomId != null) {
                     if (packet.body() != null && packet.body().startsWith("[CALL:")) {
                         return;
@@ -238,7 +258,7 @@ public final class StudyroomApp extends Application {
     private VBox sidebar() {
         VBox bar = new VBox(12); bar.getStyleClass().add("sidebar");
         Label logo = new Label("✨  Studyroom"); logo.getStyleClass().add("brand");
-        Button chat = nav("💬", "Trò chuyện", this::showChat); Button room = nav("👥", "Phòng chung", this::showRoom); Button music = nav("🎵", "Nghe nhạc", this::showMusicLounge); Button aiAssistant = nav("🤖", "Trợ lý AI", this::showAiAssistant); Button profile = nav("👤", "Hồ sơ", this::showProfile);
+        Button chat = nav("💬", "Trò chuyện", this::showChat); Button room = nav("👥", "Phòng chung", this::showRoom); Button music = nav("🎵", "Nghe nhạc", this::showMusicLounge); Button pomodoro = nav("🍅", "Pomodoro & BXH", this::showPomodoroStudy); Button notes = nav("📝", "Sổ tay học tập", this::showStudyNotes); Button aiAssistant = nav("🤖", "Trợ lý AI", this::showAiAssistant); Button profile = nav("👤", "Hồ sơ", this::showProfile);
         Region gap = new Region(); VBox.setVgrow(gap, Priority.ALWAYS);
         HBox meBox = new HBox(10);
         meBox.setAlignment(Pos.CENTER_LEFT);
@@ -270,7 +290,7 @@ public final class StudyroomApp extends Application {
 
         meActions.getChildren().addAll(switchBtn, logoutBtn);
 
-        bar.getChildren().addAll(logo, spacer(18), chat, room, music, aiAssistant, profile, gap, meBox, meActions);
+        bar.getChildren().addAll(logo, spacer(18), chat, room, music, pomodoro, notes, aiAssistant, profile, gap, meBox, meActions);
         return bar;
     }
     private Button nav(String icon, String label, Runnable action) {
@@ -2259,6 +2279,15 @@ public final class StudyroomApp extends Application {
                                 courseRepo.heartbeatPresence(activeCourseId, user.username(), user.displayName(), isCameraOn, isMicOn, myVoiceIp, myVoicePort, isLocalSpeaking, myCameraPort);
                                 CourseRepository.Course fresh = courseRepo.getCourse(activeCourseId);
                                 List<CourseRepository.OnlineMember> freshMembers = courseRepo.getOnlineMembers(activeCourseId);
+                                List<String> dbRaised = courseRepo.getRaisedHandUsernames(activeCourseId);
+                                for (String ru : dbRaised) {
+                                    if (!raisedHandUsers.contains(ru) && !ru.equalsIgnoreCase(user.username())) {
+                                        PomodoroStudyView.playCompletionChime();
+                                        Platform.runLater(() -> toast("✋ Thành viên @" + ru + " đang giơ tay xin phát biểu!"));
+                                    }
+                                }
+                                raisedHandUsers.clear();
+                                raisedHandUsers.addAll(dbRaised);
 
                                 for (CourseRepository.OnlineMember m : freshMembers) {
                                     if (!m.username().equals(user.username()) && m.ip() != null && !m.ip().isBlank()) {
@@ -2539,10 +2568,12 @@ public final class StudyroomApp extends Application {
                 studentStatus.setStyle("-fx-text-fill: -muted; -fx-font-size: 13px;");
                 HBox.setHgrow(studentStatus, Priority.ALWAYS);
 
-                Button handBtn = new Button("🙋  Giơ tay phát biểu");
+                Button handBtn = new Button(isHandRaised ? "✋  Hạ tay xuống" : "🙋  Giơ tay phát biểu");
                 handBtn.getStyleClass().addAll("button");
-                handBtn.setStyle("-fx-padding: 6 12; -fx-font-size: 12px;");
-                handBtn.setOnAction(e -> {});
+                handBtn.setStyle(isHandRaised
+                    ? "-fx-background-color: #fef3c7; -fx-text-fill: #b45309; -fx-border-color: #f59e0b; -fx-font-weight: 800; -fx-padding: 6 12; -fx-font-size: 12px;"
+                    : "-fx-padding: 6 12; -fx-font-size: 12px;");
+                handBtn.setOnAction(e -> toggleRaiseHand(course.id(), handBtn));
 
                 Button noteBtn = new Button("✎  Bảng vẽ & Ghi chú");
                 noteBtn.getStyleClass().add("button");
@@ -2660,11 +2691,19 @@ public final class StudyroomApp extends Application {
         boardDockBtn.getStyleClass().setAll("dock-btn");
         boardDockBtn.setOnAction(e -> WhiteboardWindow.getInstance().show());
 
+        Button raiseHandDockBtn = new Button(isHandRaised ? "✋ Hạ tay" : "✋ Giơ tay");
+        raiseHandDockBtn.getStyleClass().setAll(isHandRaised ? "dock-btn-danger" : "dock-btn");
+        raiseHandDockBtn.setOnAction(e -> toggleRaiseHand(course.id(), raiseHandDockBtn));
+
+        Button notesDockBtn = new Button("📝 Sổ tay");
+        notesDockBtn.getStyleClass().setAll("dock-btn");
+        notesDockBtn.setOnAction(e -> StudyNotesWindow.getInstance().show(database, user, this::toast));
+
         Button chatBtn = new Button("💬 Chat");
         chatBtn.getStyleClass().setAll("dock-btn");
         chatBtn.setOnAction(e -> showChat());
 
-        dock.getChildren().addAll(micBtn, speakerBtn, camBtn, shareScreenBtn, boardDockBtn, leaveBtn, membersBtn, chatBtn);
+        dock.getChildren().addAll(micBtn, speakerBtn, camBtn, shareScreenBtn, boardDockBtn, raiseHandDockBtn, notesDockBtn, leaveBtn, membersBtn, chatBtn);
 
         leftPane.getChildren().addAll(deck, dock);
 
@@ -2784,7 +2823,10 @@ public final class StudyroomApp extends Application {
                     } else {
                         tile.setStyle("-fx-background-color: #1c1d2b; -fx-background-radius: 12; -fx-padding: 8 10; -fx-border-color: #3b3d5b; -fx-border-width: 1.5; -fx-border-radius: 12; -fx-effect: null;");
                         avatar.setStyle("-fx-background-color: #6366f1; -fx-background-radius: 14; -fx-alignment: center;");
-                        if (isMicOn) {
+                        if (isHandRaised || raisedHandUsers.contains(m.username())) {
+                            statusBadge.setText("✋ Đang giơ tay");
+                            statusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #fbbf24; -fx-font-weight: 800; -fx-background-color: rgba(245, 158, 11, 0.22); -fx-padding: 2 6; -fx-background-radius: 6; -fx-border-color: #f59e0b; -fx-border-radius: 6;");
+                        } else if (isMicOn) {
                             statusBadge.setText("🎤 Mic bật");
                             statusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #94a3b8; -fx-font-weight: bold; -fx-background-color: #25283d; -fx-padding: 2 6; -fx-background-radius: 4;");
                         } else {
@@ -2905,7 +2947,10 @@ public final class StudyroomApp extends Application {
                 } else {
                     avatarBox.setStyle("-fx-background-color: #1c1d2b; -fx-background-radius: 12; -fx-padding: 8 10; -fx-border-color: #2e3048; -fx-border-width: 1.5; -fx-border-radius: 12; -fx-effect: null;");
                     aAvatar.setStyle("-fx-background-color: #8b5cf6; -fx-background-radius: 14; -fx-alignment: center;");
-                    if (m.cameraOn()) {
+                    if (raisedHandUsers.contains(m.username())) {
+                        aStatusBadge.setText("✋ Đang giơ tay");
+                        aStatusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #fbbf24; -fx-font-weight: 800; -fx-background-color: rgba(245, 158, 11, 0.22); -fx-padding: 2 6; -fx-background-radius: 6; -fx-border-color: #f59e0b; -fx-border-radius: 6;");
+                    } else if (m.cameraOn()) {
                         aStatusBadge.setText("📹 Đang kết nối cam...");
                         aStatusBadge.setStyle("-fx-font-size: 10px; -fx-text-fill: #60a5fa; -fx-font-weight: bold; -fx-background-color: #1e293b; -fx-padding: 2 6; -fx-background-radius: 4;");
                     } else if (m.micOn()) {
@@ -3778,6 +3823,50 @@ public final class StudyroomApp extends Application {
     }
     private void refreshSidebar() {
         shell.setLeft(sidebar());
+    }
+
+    private void toggleRaiseHand(String courseId, Button triggerBtn) {
+        isHandRaised = !isHandRaised;
+        if (isHandRaised) {
+            raisedHandUsers.add(user.username());
+            toast("✋ Bạn đã giơ tay xin phát biểu!");
+        } else {
+            raisedHandUsers.remove(user.username());
+            toast("Đã hạ tay xuống.");
+        }
+        if (triggerBtn != null) {
+            if (triggerBtn.getText().contains("phát biểu") || triggerBtn.getText().contains("xuống")) {
+                triggerBtn.setText(isHandRaised ? "✋  Hạ tay xuống" : "🙋  Giơ tay phát biểu");
+            } else {
+                triggerBtn.setText(isHandRaised ? "✋ Hạ tay" : "✋ Giơ tay");
+                triggerBtn.getStyleClass().setAll(isHandRaised ? "dock-btn-danger" : "dock-btn");
+            }
+        }
+        Thread.ofVirtual().start(() -> courseRepo.setHandRaised(courseId, user.username(), user.displayName(), isHandRaised));
+        if (node != null) {
+            try {
+                node.broadcast(user.displayName(), "RAISE_HAND|" + courseId + "|" + user.username() + "|" + user.displayName() + "|" + isHandRaised);
+            } catch (Exception ignored) {}
+        }
+        Runnable cb = tileSpeakingUpdateCallbacks.get(user.username());
+        if (cb != null) cb.run();
+    }
+
+    private void showPomodoroStudy() {
+        refreshSidebar();
+        PomodoroStudyView pv = new PomodoroStudyView(database, user, musicPlayer, this::toast,
+            (uname, dname) -> userAvatar(uname, initials(dname), "avatar-person", 34));
+        pv.render(content);
+    }
+
+    private void showStudyNotes() {
+        refreshSidebar();
+        content.getChildren().clear();
+        content.getStyleClass().setAll("workspace");
+        content.setPadding(new Insets(16, 22, 16, 22));
+        BorderPane embedded = StudyNotesWindow.getInstance().buildEmbeddedPane(database, user, this::toast);
+        VBox.setVgrow(embedded, Priority.ALWAYS);
+        content.getChildren().add(embedded);
     }
 
     private void showAiAssistant() {
