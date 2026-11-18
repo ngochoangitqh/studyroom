@@ -2,7 +2,7 @@ package vn.studyroom;
 
 /**
  * Representation of a music track in the study music rooms.
- * Supports synthesized ambient tracks, custom WAV uploads, SoundCloud streams, and Spotify embeds.
+ * Supports synthesized ambient tracks, custom WAV uploads, YouTube audio, and Spotify embeds.
  */
 public record MusicTrack(
     String id,
@@ -14,7 +14,7 @@ public record MusicTrack(
     String coverGradient,
     String genre,
     byte[] customAudioData,
-    String soundcloudUrl,
+    String streamUrl,
     String spotifyUrl,
     String thumbnailUrl,
     String widgetSrc
@@ -36,28 +36,6 @@ public record MusicTrack(
         if (text.contains("code") || text.contains("coding") || text.contains("synth") || text.contains("cyber") || text.contains("retro")) return "SYNTHWAVE";
         if (text.contains("viet") || text.contains("v-pop") || text.contains("indie") || text.contains("ballad") || text.contains("buon")) return "VPOP";
         return "LOFI";
-    }
-
-    public static MusicTrack fromSoundCloud(SoundCloudTrackInfo info) {
-        String id = "sc-" + Math.abs(info.soundcloudUrl().hashCode());
-        String genre = info.isPlaylist() ? "SoundCloud Playlist" : "SoundCloud Track";
-        String gradient = "linear-gradient(to bottom right, #ea580c, #f97316)";
-        String soundType = detectSoundType(info.title(), info.authorName(), genre);
-        return new MusicTrack(
-            id,
-            info.title(),
-            info.authorName(),
-            info.isPlaylist() ? "SoundCloud Album" : "SoundCloud Single",
-            240,
-            soundType,
-            gradient,
-            genre,
-            null,
-            info.soundcloudUrl(),
-            null,
-            info.thumbnailUrl(),
-            info.widgetSrc()
-        );
     }
 
     public static MusicTrack fromSpotify(SpotifyService.SpotifyTrackInfo info) {
@@ -113,16 +91,12 @@ public record MusicTrack(
             || (widgetSrc != null && (widgetSrc.contains("youtube.com") || widgetSrc.contains("youtu.be")));
     }
 
-    public boolean isSoundCloud() {
-        return soundcloudUrl != null && !soundcloudUrl.isBlank();
-    }
-
     public boolean isSpotify() {
         return spotifyUrl != null && !spotifyUrl.isBlank();
     }
 
     public boolean isOnlineStream() {
-        return isSoundCloud() || isSpotify();
+        return isSpotify() || isYoutube();
     }
 
     public String formattedDuration() {

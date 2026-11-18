@@ -260,10 +260,10 @@ public class BottomMusicBar extends HBox {
             roomBadgeLbl.setText("🟢 Spotify Stream");
             roomBadgeLbl.setStyle("-fx-text-fill: #1db954; -fx-font-size: 10px; -fx-font-weight: 800;");
             miniArt.setStyle("-fx-background-color: #1db954; -fx-background-radius: 8; -fx-cursor: hand;");
-        } else if (t.isSoundCloud()) {
-            roomBadgeLbl.setText("☁️ SoundCloud Stream");
-            roomBadgeLbl.setStyle("-fx-text-fill: #ff5500; -fx-font-size: 10px; -fx-font-weight: 800;");
-            miniArt.setStyle("-fx-background-color: linear-gradient(to bottom right, #ea580c, #f97316); -fx-background-radius: 8; -fx-cursor: hand;");
+        } else if (t.isYoutube()) {
+            roomBadgeLbl.setText("▶️ YouTube Audio");
+            roomBadgeLbl.setStyle("-fx-text-fill: #f43f5e; -fx-font-size: 10px; -fx-font-weight: 800;");
+            miniArt.setStyle("-fx-background-color: linear-gradient(to bottom right, #f43f5e, #fb7185); -fx-background-radius: 8; -fx-cursor: hand;");
         } else {
             roomBadgeLbl.setStyle("-fx-text-fill: #10b981; -fx-font-size: 10px; -fx-font-weight: 600;");
             miniArt.setStyle("-fx-background-color: linear-gradient(to bottom right, #6366f1, #a855f7); -fx-background-radius: 8; -fx-cursor: hand;");
