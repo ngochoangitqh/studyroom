@@ -258,7 +258,7 @@ public final class StudyroomApp extends Application {
     private VBox sidebar() {
         VBox bar = new VBox(12); bar.getStyleClass().add("sidebar");
         Label logo = new Label("✨  Studyroom"); logo.getStyleClass().add("brand");
-        Button chat = nav("💬", "Trò chuyện", this::showChat); Button room = nav("👥", "Phòng chung", this::showRoom); Button music = nav("🎵", "Nghe nhạc", this::showMusicLounge); Button pomodoro = nav("🍅", "Pomodoro & BXH", this::showPomodoroStudy); Button notes = nav("📝", "Sổ tay học tập", this::showStudyNotes); Button aiAssistant = nav("🤖", "Trợ lý AI", this::showAiAssistant); Button profile = nav("👤", "Hồ sơ", this::showProfile);
+        Button chat = nav("💬", "Trò chuyện", this::showChat); Button room = nav("👥", "Phòng chung", this::showRoom); Button music = nav("🎵", "Nghe nhạc", this::showMusicLounge); Button pomodoro = nav("🍅", "Pomodoro", this::showPomodoroStudy); Button notes = nav("📝", "Sổ tay học tập", this::showStudyNotes); Button aiAssistant = nav("🤖", "Trợ lý AI", this::showAiAssistant); Button profile = nav("👤", "Hồ sơ", this::showProfile);
         Region gap = new Region(); VBox.setVgrow(gap, Priority.ALWAYS);
         HBox meBox = new HBox(10);
         meBox.setAlignment(Pos.CENTER_LEFT);
@@ -3863,10 +3863,33 @@ public final class StudyroomApp extends Application {
         refreshSidebar();
         content.getChildren().clear();
         content.getStyleClass().setAll("workspace");
-        content.setPadding(new Insets(16, 22, 16, 22));
+        content.setPadding(new Insets(16, 24, 16, 24));
+        content.setSpacing(12);
+
+        HBox header = new HBox(12);
+        header.setAlignment(Pos.CENTER_LEFT);
+        VBox titleCol = new VBox(2);
+        Label title = new Label("📝 Sổ tay Học tập & Mục tiêu cá nhân");
+        title.setStyle("-fx-font-size: 20px; -fx-font-weight: 800; -fx-text-fill: -ink;");
+        Label sub = new Label("Ghi chép bài giảng nhanh, quản lý danh sách việc cần làm và xuất tài liệu Markdown");
+        sub.getStyleClass().add("muted");
+        sub.setStyle("-fx-font-size: 13px;");
+        titleCol.getChildren().addAll(title, sub);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button floatBtn = new Button("🗗 Mở cửa sổ nổi");
+        floatBtn.setMinSize(Region.USE_PREF_SIZE, 34);
+        floatBtn.setMaxHeight(34);
+        floatBtn.setStyle("-fx-background-color: #eef2ff; -fx-text-fill: #4f46e5; -fx-border-color: #c7d2fe; -fx-border-radius: 12; -fx-background-radius: 12; -fx-font-weight: 700; -fx-font-size: 12px; -fx-padding: 0 14; -fx-cursor: hand;");
+        floatBtn.setOnAction(e -> StudyNotesWindow.getInstance().show(database, user, this::toast));
+
+        header.getChildren().addAll(titleCol, spacer, floatBtn);
+
         BorderPane embedded = StudyNotesWindow.getInstance().buildEmbeddedPane(database, user, this::toast);
         VBox.setVgrow(embedded, Priority.ALWAYS);
-        content.getChildren().add(embedded);
+        content.getChildren().addAll(header, embedded);
     }
 
     private void showAiAssistant() {

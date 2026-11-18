@@ -112,3 +112,75 @@
 .music-slider .track { -fx-background-color: #3f3f46; -fx-background-radius: 4; -fx-pref-height: 4; }
 .music-slider .thumb { -fx-background-color: white; -fx-background-radius: 999; -fx-pref-width: 12; -fx-pref-height: 12; }
 .music-slider:hover .thumb { -fx-background-color: #1db954; -fx-effect: dropshadow(gaussian, rgba(29,185,84,0.5), 6, 0, 0, 1); }
+
+/* Soft Study Notes & Pomodoro UI */
+.soft-scroll, .soft-scroll > .viewport {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-border-color: transparent;
+}
+.soft-scroll .scroll-bar:vertical, .thread-scroll .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 6px;
+}
+.soft-scroll .scroll-bar:vertical .thumb, .thread-scroll .scroll-bar:vertical .thumb {
+    -fx-background-color: #cbd5e1;
+    -fx-background-radius: 999;
+}
+.soft-textarea {
+    -fx-background-color: #fcfcff;
+    -fx-background-insets: 0;
+    -fx-background-radius: 14;
+    -fx-border-color: #e2e8f0;
+    -fx-border-radius: 14;
+    -fx-padding: 8 10;
+    -fx-font-family: "Segoe UI", sans-serif;
+    -fx-font-size: 14px;
+    -fx-text-fill: #1e293b;
+}
+.soft-textarea:focused {
+    -fx-border-color: #818cf8;
+    -fx-background-color: #ffffff;
+    -fx-effect: dropshadow(gaussian, rgba(99, 102, 241, 0.12), 10, 0, 0, 2);
+}
+.soft-textarea .content {
+    -fx-background-color: transparent;
+    -fx-background-radius: 12;
+    -fx-padding: 6;
+}
+.soft-textarea .scroll-pane, .soft-textarea .scroll-pane > .viewport {
+    -fx-background-color: transparent;
+}
+.soft-checkbox .box {
+    -fx-background-color: white;
+    -fx-border-color: #cbd5e1;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 3;
+}
+.soft-checkbox:hover .box {
+    -fx-border-color: #6366f1;
+}
+.soft-checkbox:selected .box {
+    -fx-background-color: #6366f1;
+    -fx-border-color: #6366f1;
+}
+.soft-checkbox:selected .mark {
+    -fx-background-color: white;
+}
+.soft-progress {
+    -fx-pref-height: 7px;
+    -fx-min-height: 7px;
+    -fx-max-height: 7px;
+}
+.soft-progress > .track {
+    -fx-background-color: #eef2ff;
+    -fx-background-radius: 999;
+    -fx-background-insets: 0;
+}
+.soft-progress > .bar {
+    -fx-background-color: linear-gradient(to right, #6366f1, #8b5cf6);
+    -fx-background-radius: 999;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}

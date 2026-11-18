@@ -233,7 +233,9 @@ public final class PomodoroStudyView {
 
     private Button createModePill(String label, int seconds, String fullTitle, String accentHex, boolean breakMode) {
         Button btn = new Button(label);
-        btn.setStyle("-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-weight: 700; -fx-font-size: 12px; -fx-background-radius: 16; -fx-padding: 6 14; -fx-cursor: hand;");
+        btn.setMinSize(Region.USE_PREF_SIZE, 34);
+        btn.setMaxHeight(34);
+        btn.setStyle("-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-border-color: #e2e8f0; -fx-border-radius: 999; -fx-font-weight: 700; -fx-font-size: 12px; -fx-background-radius: 999; -fx-padding: 0 14; -fx-cursor: hand;");
         btn.setOnAction(e -> {
             isRunning = false;
             totalSeconds = seconds;
@@ -298,14 +300,16 @@ public final class PomodoroStudyView {
         Region bg = new Region();
         HBox.setHgrow(bg, Priority.ALWAYS);
         Button refreshBtn = new Button("↻ Làm mới");
-        refreshBtn.setStyle("-fx-background-color: #f1f5f9; -fx-text-fill: #475569; -fx-font-size: 11px; -fx-font-weight: 700; -fx-background-radius: 8; -fx-cursor: hand;");
+        refreshBtn.setMinSize(Region.USE_PREF_SIZE, 28);
+        refreshBtn.setMaxHeight(28);
+        refreshBtn.setStyle("-fx-background-color: #f1f5f9; -fx-text-fill: #475569; -fx-border-color: #e2e8f0; -fx-border-radius: 999; -fx-font-size: 11px; -fx-font-weight: 700; -fx-background-radius: 999; -fx-padding: 0 11; -fx-cursor: hand;");
         refreshBtn.setOnAction(e -> refreshLeaderboardUI());
         boardHeader.getChildren().addAll(boardTitle, bg, refreshBtn);
 
         leaderboardList = new VBox(8);
         ScrollPane scroll = new ScrollPane(leaderboardList);
         scroll.setFitToWidth(true);
-        scroll.setStyle("-fx-background-color: transparent; -fx-border-color: transparent;");
+        scroll.getStyleClass().addAll("thread-scroll", "soft-scroll");
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
         boardCard.getChildren().addAll(boardHeader, scroll);
