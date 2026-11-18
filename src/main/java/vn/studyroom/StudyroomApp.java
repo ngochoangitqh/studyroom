@@ -267,7 +267,7 @@ public final class StudyroomApp extends Application {
         VBox meCopy = new VBox(2);
         Label meName = new Label(user.displayName());
         meName.setStyle("-fx-font-weight: 700; -fx-font-size: 13px; -fx-text-fill: #111827;");
-        Label meStatus = new Label("📷  Hồ sơ & Đổi ảnh");
+        Label meStatus = new Label("📷 Xem hồ sơ");
         meStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #6366f1; -fx-font-weight: 600;");
         meCopy.getChildren().addAll(meName, meStatus);
         meBox.getChildren().addAll(meAvt, meCopy);
@@ -276,16 +276,22 @@ public final class StudyroomApp extends Application {
         HBox meActions = new HBox(6);
         meActions.setAlignment(Pos.CENTER);
 
-        Button switchBtn = new Button("🔄 Đổi tài khoản");
+        Button switchBtn = new Button("🔄 Đổi TK");
+        switchBtn.setTooltip(new Tooltip("Chuyển đổi tài khoản"));
+        switchBtn.setMinHeight(30);
+        switchBtn.setMaxHeight(30);
         switchBtn.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(switchBtn, Priority.ALWAYS);
-        switchBtn.setStyle("-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-size: 11px; -fx-font-weight: 700; -fx-background-radius: 8; -fx-padding: 6 4; -fx-cursor: hand; -fx-border-color: #e2e8f0; -fx-border-radius: 8;");
+        switchBtn.setStyle("-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-size: 11px; -fx-font-weight: 700; -fx-background-radius: 8; -fx-padding: 0 6; -fx-cursor: hand; -fx-border-color: #e2e8f0; -fx-border-radius: 8;");
         switchBtn.setOnAction(e -> showSwitchAccountDialog());
 
-        Button logoutBtn = new Button("🚪 Đăng xuất");
+        Button logoutBtn = new Button("🚪 Thoát");
+        logoutBtn.setTooltip(new Tooltip("Đăng xuất tài khoản"));
+        logoutBtn.setMinHeight(30);
+        logoutBtn.setMaxHeight(30);
         logoutBtn.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(logoutBtn, Priority.ALWAYS);
-        logoutBtn.setStyle("-fx-background-color: #fee2e2; -fx-text-fill: #dc2626; -fx-font-size: 11px; -fx-font-weight: 700; -fx-background-radius: 8; -fx-padding: 6 4; -fx-cursor: hand; -fx-border-color: #fecaca; -fx-border-radius: 8;");
+        logoutBtn.setStyle("-fx-background-color: #fee2e2; -fx-text-fill: #dc2626; -fx-font-size: 11px; -fx-font-weight: 700; -fx-background-radius: 8; -fx-padding: 0 6; -fx-cursor: hand; -fx-border-color: #fecaca; -fx-border-radius: 8;");
         logoutBtn.setOnAction(e -> confirmAndLogout());
 
         meActions.getChildren().addAll(switchBtn, logoutBtn);
@@ -3899,45 +3905,27 @@ public final class StudyroomApp extends Application {
     }
 
     private void showProfile() {
-        base("Hồ sơ cá nhân", "Quản lý thông tin và hình ảnh đại diện của bạn");
         refreshSidebar();
-        VBox card = new VBox(16);
-        card.setAlignment(Pos.CENTER);
-        card.setStyle("-fx-background-color: white; -fx-background-radius: 16; -fx-padding: 32 40; -fx-border-color: #e5e7eb; -fx-border-radius: 16; -fx-max-width: 480; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 8, 0, 0, 2);");
-
         StackPane bigAvatar = userAvatar(user.username(), initials(user.displayName()), "avatar-person", 84);
-        bigAvatar.setCursor(javafx.scene.Cursor.HAND);
-        Tooltip.install(bigAvatar, new Tooltip("Nhấp để đổi ảnh đại diện"));
-        bigAvatar.setOnMouseClicked(e -> showChangeUserAvatarDialog());
-
-        Label nameLbl = new Label(user.displayName());
-        nameLbl.setStyle("-fx-font-size: 20px; -fx-font-weight: 800; -fx-text-fill: #111827;");
-
-        Label handleLbl = new Label("@" + user.username());
-        handleLbl.setStyle("-fx-font-size: 14px; -fx-text-fill: #6b7280;");
-
-        Button changeAvatarBtn = new Button("📷  Đổi ảnh đại diện");
-        changeAvatarBtn.setStyle("-fx-background-color: #6366f1; -fx-text-fill: white; -fx-font-weight: 700; -fx-font-size: 13px; -fx-background-radius: 20; -fx-padding: 8 20; -fx-cursor: hand;");
-        changeAvatarBtn.setOnAction(e -> showChangeUserAvatarDialog());
-
-        Label statusLbl = new Label("🟢  Trạng thái: Đang hoạt động");
-        statusLbl.setStyle("-fx-font-size: 13px; -fx-text-fill: #10b981; -fx-font-weight: 600;");
-
-        HBox accountActions = new HBox(12);
-        accountActions.setAlignment(Pos.CENTER);
-
-        Button switchAccProfileBtn = new Button("🔄  Đổi tài khoản");
-        switchAccProfileBtn.setStyle("-fx-background-color: #4f46e5; -fx-text-fill: white; -fx-font-weight: 700; -fx-font-size: 13px; -fx-background-radius: 20; -fx-padding: 8 20; -fx-cursor: hand;");
-        switchAccProfileBtn.setOnAction(e -> showSwitchAccountDialog());
-
-        Button logoutProfileBtn = new Button("🚪  Đăng xuất");
-        logoutProfileBtn.setStyle("-fx-background-color: #fee2e2; -fx-text-fill: #dc2626; -fx-font-weight: 700; -fx-font-size: 13px; -fx-background-radius: 20; -fx-padding: 8 20; -fx-cursor: hand; -fx-border-color: #fca5a5; -fx-border-radius: 20;");
-        logoutProfileBtn.setOnAction(e -> confirmAndLogout());
-
-        accountActions.getChildren().addAll(switchAccProfileBtn, logoutProfileBtn);
-
-        card.getChildren().addAll(bigAvatar, nameLbl, handleLbl, changeAvatarBtn, new Separator(), statusLbl, new Separator(), accountActions);
-        content.getChildren().add(card);
+        ProfileView pv = new ProfileView(
+            database,
+            user,
+            bigAvatar,
+            this::showChangeUserAvatarDialog,
+            this::showSwitchAccountDialog,
+            this::confirmAndLogout,
+            this::showPomodoroStudy,
+            this::showStudyNotes,
+            this::showRoom,
+            this::showAiAssistant,
+            newDisplayName -> {
+                user = new User(user.username(), newDisplayName);
+                refreshSidebar();
+                showProfile();
+            },
+            this::toast
+        );
+        pv.render(content);
     }
 
     private void confirmAndLogout() {
